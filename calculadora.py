@@ -52,10 +52,11 @@ with st.sidebar:
 
     st.markdown("---")
     
-    # SECCIÓN: Abonos Extraordinarios
-    with st.expander("4. Abonos Extraordinarios (Opcional)", expanded=False):
-        st.caption("Añade fechas específicas para inyectar capital extra (ej. Aguinaldos).")
-        
+    # SECCIÓN: Abonos Extraordinarios (MEJORADA)
+    st.header("4. Abonos Extraordinarios")
+    st.caption("Añade fechas específicas para inyectar capital extra (ej. Aguinaldos).")
+    
+    with st.expander("Gestionar Tabla de Abonos", expanded=False):
         df_base = pd.DataFrame(columns=["Fecha", "Monto"])
         
         abonos_df = st.data_editor(
@@ -185,9 +186,16 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
     datos_grafico[nombre] = puntos
     
     with col:
-        # Resaltar si es el escenario seleccionado
-        if escenario_view == nombre:
-            st.markdown(f"#### 🎯 {nombre} ({tasa_input}%)")
+        # Detectar si este escenario es el seleccionado
+        is_selected = (escenario_view == nombre)
+        
+        if is_selected:
+            # Resaltado visual con fondo dorado y borde
+            st.markdown(f"""
+            <div style="background-color: rgba(255, 215, 0, 0.15); padding: 10px; border-radius: 8px; border: 1px solid #ffd700; text-align: center; margin-bottom: 10px;">
+                <h4 style="margin:0; color: #d4af37;">🎯 {nombre} ({tasa_input}%)</h4>
+            </div>
+            """, unsafe_allow_html=True)
         else:
             st.subheader(f"{nombre} ({tasa_input}%)")
             
@@ -202,8 +210,13 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
         
         ganancia_pura = res['saldo_nominal'] - res['total_depositado']
         
-        # CORRECCIÓN: Eliminamos <br> y usamos saltos de línea normales
-        st.info(f"**Inversión Total:** ₡ {res['total_depositado']:,.0f}\n\n**Ganancia Intereses:** ₡ {ganancia_pura:,.0f}", icon="💰")
+        # Mensaje final: Verde si es seleccionado, Azul si no
+        msg = f"**Inversión Total:** ₡ {res['total_depositado']:,.0f}\n\n**Ganancia Intereses:** ₡ {ganancia_pura:,.0f}"
+        
+        if is_selected:
+            st.success(msg, icon="🌟")
+        else:
+            st.info(msg, icon="💰")
 
 st.markdown("---")
 
