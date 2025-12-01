@@ -110,6 +110,9 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
     
     # --- Proyección Mes a Mes ---
     valores_nominales = [inicial]
+    serie_aportes = [inicial] # Nueva lista para graficar composición
+    serie_real = [inicial]    # Nueva lista para graficar valor real mes a mes
+    
     total_depositado = inicial
     
     for i in range(meses):
@@ -118,19 +121,30 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
         # Verificar abono extra este mes
         extra_este_mes = abonos_map.get(i, 0)
         
+        # Totales
         nuevo_saldo = valores_nominales[-1] + interes + aporte + extra_este_mes
+        nuevo_aporte_acumulado = total_depositado + aporte + extra_este_mes
         
+        # Calculo de Valor Real mes a mes (descontando inflación mensual aprox)
+        inflacion_mensual = (1 + inflacion_pct/100)**(1/12) - 1
+        nuevo_saldo_real = nuevo_saldo / ((1 + inflacion_mensual)**(i+1))
+
+        # Guardar en listas
         valores_nominales.append(nuevo_saldo)
+        serie_aportes.append(nuevo_aporte_acumulado)
+        serie_real.append(nuevo_saldo_real)
+        
         total_depositado += (aporte + extra_este_mes)
         
     saldo_final_nominal = valores_nominales[-1]
     
-    # Valor Real
-    factor_descuento = (1 + (inflacion_pct / 100)) ** anos
-    saldo_final_real = saldo_final_nominal / factor_descuento
+    # Valor Real Final
+    saldo_final_real = serie_real[-1]
     
     return {
         "serie_nominal": valores_nominales,
+        "serie_aportes": serie_aportes, # Necesario para gráfico composición
+        "serie_real": serie_real,       # Necesario para gráfico inflación
         "saldo_nominal": saldo_final_nominal,
         "saldo_real": saldo_final_real,
         "tasa_real_neta": tasa_real_neta_anual,
@@ -149,10 +163,14 @@ st.markdown("### 🏁 Resultados Comparativos")
 cols = st.columns(3)
 datos_grafico = pd.DataFrame()
 
+# Guardaremos los resultados completos para usar en los otros tabs
+resultados_completos = {}
+
 for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
     res = calcular_escenario_completo(
         tasa_input, plazo_anos, aporte_mensual, saldo_inicial, comision, inflacion, abonos_df, fecha_inicio
     )
+    resultados_completos[nombre] = res
     
     puntos = [res["serie_nominal"][i*12] for i in range(plazo_anos + 1)]
     datos_grafico[nombre] = puntos
@@ -169,19 +187,54 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
         """, unsafe_allow_html=True)
         
         ganancia_pura = res['saldo_nominal'] - res['total_depositado']
-        st.info(f"""
-        **Inversión Total:** ₡ {res['total_depositado']:,.0f}
-        <br>**Ganancia Intereses:** ₡ {ganancia_pura:,.0f}
-        """, icon="💰")
+        
+        # CORRECCIÓN: Eliminamos <br> y usamos saltos de línea normales
+        st.info(f"**Inversión Total:** ₡ {res['total_depositado']:,.0f}\n\n**Ganancia Intereses:** ₡ {ganancia_pura:,.0f}", icon="💰")
 
 st.markdown("---")
 
-tab1, tab2 = st.tabs(["📈 Gráfico de Crecimiento", "📋 Tabla Detallada"])
+# PESTAÑAS AMPLIADAS
+tab1, tab2, tab3, tab4 = st.tabs(["📈 Crecimiento", "🍰 Composición (Interés vs Capital)", "💸 Impacto Inflación", "📋 Tabla Detallada"])
 
+# TAB 1: El gráfico comparativo original
 with tab1:
-    st.subheader(f"Evolución del Saldo Nominal a {plazo_anos} años")
+    st.subheader(f"Evolución Comparativa (Nominal)")
     st.line_chart(datos_grafico, use_container_width=True)
-    st.caption(f"Nota: Los valores muestran el saldo nominal proyectado incluyendo aportes extraordinarios.")
+    st.caption(f"Comparación de los saldos nominales de los 3 escenarios.")
 
+# TAB 2: Gráfico de Área (Composición)
 with tab2:
+    st.subheader("¿Cuánto es mi esfuerzo y cuánto es ganancia?")
+    st.caption("Este gráfico muestra la magia del interés compuesto usando el escenario **Moderado**.")
+    
+    # Usamos el escenario Moderado para el ejemplo
+    res_mod = resultados_completos["Moderado"]
+    
+    # Preparamos datos anuales
+    datos_area = pd.DataFrame({
+        "Tu Aporte": [res_mod["serie_aportes"][i*12] for i in range(plazo_anos + 1)],
+        "Intereses Ganados": [(res_mod["serie_nominal"][i*12] - res_mod["serie_aportes"][i*12]) for i in range(plazo_anos + 1)]
+    })
+    
+    # Gráfico de área apilada
+    st.area_chart(datos_area, color=["#1f77b4", "#aec7e8"])
+    st.info("💡 **Observa:** La zona clara (Intereses) empieza pequeña, pero con el tiempo se vuelve más grande que la zona oscura (Tu Aporte). ¡Eso es el dinero trabajando por ti!")
+
+# TAB 3: Nominal vs Real
+with tab3:
+    st.subheader("La ilusión del dinero: Nominal vs Real")
+    st.caption("Diferencia entre el número que verás en tu cuenta y lo que realmente podrás comprar con él (Escenario Moderado).")
+    
+    res_mod = resultados_completos["Moderado"]
+    
+    datos_realidad = pd.DataFrame({
+        "Saldo Nominal (Billetes)": [res_mod["serie_nominal"][i*12] for i in range(plazo_anos + 1)],
+        "Valor Real (Poder de Compra)": [res_mod["serie_real"][i*12] for i in range(plazo_anos + 1)]
+    })
+    
+    st.line_chart(datos_realidad, color=["#1f77b4", "#2ca02c"])
+    st.warning(f"⚠️ **Atención:** La brecha entre la línea azul y la verde es el 'impuesto invisible' de la inflación ({inflacion}% anual).")
+
+# TAB 4: Tabla
+with tab4:
     st.dataframe(datos_grafico.style.format("₡ {:,.0f}"))
