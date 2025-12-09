@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from datetime import date
+import textwrap # Para limpiar indentación HTML
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -254,10 +255,9 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
             opacity = "1"
             icon = "🌟"
         else:
-            # No Seleccionado: Gris azulado traslúcido (MÁS CLARO que el fondo)
-            # Fondo de la app es #0f172a (muy oscuro). Usamos Slate 700/800 con transparencia
+            # No Seleccionado: Gris azulado traslúcido
             border = "1px solid rgba(148, 163, 184, 0.2)"
-            bg = "rgba(51, 65, 85, 0.7)" # Color Slate-700 al 70% opacidad. Visiblemente más claro que el fondo negro.
+            bg = "rgba(51, 65, 85, 0.7)" 
             shadow = "0 4px 6px rgba(0, 0, 0, 0.1)"
             opacity = "0.9"
             icon = "🔹"
@@ -265,35 +265,37 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
         ganancia = res['saldo_nominal'] - res['total_depositado']
         roi = (ganancia / res['total_depositado']) * 100 if res['total_depositado'] > 0 else 0
 
-        st.markdown(f"""
-        <div style="background-color: {bg}; border: {border}; border-radius: 12px; padding: 20px; box-shadow: {shadow}; margin-bottom: 20px; opacity: {opacity}; backdrop-filter: blur(10px);">
-            <h3 style="margin: 0 0 15px 0; font-size: 1.3rem; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
-                {icon} {nombre} <span style="font-size: 0.8rem; color: #cbd5e1; font-weight: normal;">({tasa_input}%)</span>
-            </h3>
-            <div style="margin-bottom: 15px;">
-                <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Saldo Nominal Futuro</div>
-                <div style="font-size: 2rem; font-weight: 700; color: #fff;">₡ {res['saldo_nominal']:,.0f}</div>
-            </div>
-            <div style="margin-bottom: 20px;">
-                <div style="font-size: 0.85rem; color: #94a3b8;">Valor Real (Poder de compra)</div>
-                <div style="font-size: 1.4rem; font-weight: 600; color: #4ade80;">₡ {res['saldo_real']:,.0f}</div>
-            </div>
-            <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 12px; font-size: 0.9rem;">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
-                    <span style="color: #cbd5e1;">Inversión:</span>
-                    <span style="color: #fff; font-weight: 500;">₡ {res['total_depositado']:,.0f}</span>
+        # FIX CRÍTICO: Usamos textwrap.dedent para evitar que Streamlit interprete el HTML como código
+        card_html = textwrap.dedent(f"""
+            <div style="background-color: {bg}; border: {border}; border-radius: 12px; padding: 20px; box-shadow: {shadow}; margin-bottom: 20px; opacity: {opacity}; backdrop-filter: blur(10px);">
+                <h3 style="margin: 0 0 15px 0; font-size: 1.3rem; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                    {icon} {nombre} <span style="font-size: 0.8rem; color: #cbd5e1; font-weight: normal;">({tasa_input}%)</span>
+                </h3>
+                <div style="margin-bottom: 15px;">
+                    <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase;">Saldo Nominal Futuro</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: #fff;">₡ {res['saldo_nominal']:,.0f}</div>
                 </div>
-                <div style="display: flex; justify-content: space-between;">
-                    <span style="color: #cbd5e1;">Ganancia:</span>
-                    <span style="color: #60a5fa; font-weight: 500;">₡ {ganancia:,.0f}</span>
+                <div style="margin-bottom: 20px;">
+                    <div style="font-size: 0.85rem; color: #94a3b8;">Valor Real (Poder de compra)</div>
+                    <div style="font-size: 1.4rem; font-weight: 600; color: #4ade80;">₡ {res['saldo_real']:,.0f}</div>
                 </div>
-                <div style="display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">
-                    <span style="color: #cbd5e1;">ROI:</span>
-                    <span style="color: #facc15; font-weight: 700;">{roi:.1f}%</span>
+                <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 12px; font-size: 0.9rem;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <span style="color: #cbd5e1;">Inversión:</span>
+                        <span style="color: #fff; font-weight: 500;">₡ {res['total_depositado']:,.0f}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="color: #cbd5e1;">Ganancia:</span>
+                        <span style="color: #60a5fa; font-weight: 500;">₡ {ganancia:,.0f}</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">
+                        <span style="color: #cbd5e1;">ROI:</span>
+                        <span style="color: #facc15; font-weight: 700;">{roi:.1f}%</span>
+                    </div>
                 </div>
             </div>
-        </div>
-        """, unsafe_allow_html=True)
+        """)
+        st.markdown(card_html, unsafe_allow_html=True)
 
 st.markdown("---")
 tab1, tab2, tab3, tab4 = st.tabs(["📈 Crecimiento", "🍰 Composición", "💸 Inflación", "📋 Tabla Detallada"])
@@ -330,11 +332,10 @@ with tab4:
         tabla_completa[f"{nombre} (Nominal)"] = [r["serie_nominal"][i*12] for i in range(plazo_anos + 1)]
         tabla_completa[f"{nombre} (Real)"] = [r["serie_real"][i*12] for i in range(plazo_anos + 1)]
     
-    # IMPORTANTE: st.dataframe usa la configuración del sistema. 
-    # El archivo config.toml adjunto forzará el modo oscuro para arreglar las cabeceras blancas.
+    # FIX: Se eliminó .background_gradient() para evitar errores si falta matplotlib
+    # Esto soluciona el error en la tabla y la hace más robusta
     st.dataframe(
-        tabla_completa.style.format({col: "₡ {:,.0f}" for col in tabla_completa.columns if col != "Año"})
-        .background_gradient(cmap="YlOrBr", subset=[c for c in tabla_completa.columns if "Nominal" in c]),
+        tabla_completa.style.format({col: "₡ {:,.0f}" for col in tabla_completa.columns if col != "Año"}),
         use_container_width=True,
         height=400
     )
