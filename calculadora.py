@@ -220,21 +220,24 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
         is_selected = (escenario_view == nombre)
         
         if is_selected:
-            border_color = "#4ade80"  # Verde brillante
+            # Tarjeta Seleccionada: Verde brillante
+            border_color = "#4ade80"  
             bg_color = "rgba(74, 222, 128, 0.15)" 
             shadow = "0 0 20px rgba(74, 222, 128, 0.2)"
             icon_header = "🌟"
             opacity = "1"
         else:
-            border_color = "rgba(255, 255, 255, 0.1)"
-            bg_color = "rgba(255, 255, 255, 0.03)"
-            shadow = "none"
+            # Tarjeta No Seleccionada (La corrección que pediste)
+            # Azul grisáceo traslúcido, más claro que el fondo negro
+            border_color = "rgba(255, 255, 255, 0.15)"
+            bg_color = "rgba(30, 41, 59, 0.60)" # Slate 800 con 60% opacidad
+            shadow = "0 4px 6px rgba(0, 0, 0, 0.1)"
             icon_header = "🔹"
-            opacity = "0.85"
+            opacity = "0.95"
 
-        # CORRECCIÓN: HTML sin sangría para evitar que se renderice como código
+        # HTML DE LA TARJETA (Sin indentación para evitar el error de código)
         card_html = f"""
-<div style="background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 12px; padding: 20px; box-shadow: {shadow}; margin-bottom: 20px; transition: all 0.3s ease; opacity: {opacity};">
+<div style="background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 12px; padding: 20px; box-shadow: {shadow}; margin-bottom: 20px; transition: all 0.3s ease; opacity: {opacity}; backdrop-filter: blur(5px);">
     <h3 style="margin-top: 0; font-size: 1.3rem; color: #fff; border-bottom: 1px solid {border_color}; padding-bottom: 10px; margin-bottom: 15px;">
         {icon_header} {nombre} <span style="font-size: 0.8rem; color: #aaa; font-weight: normal;">({tasa_input}%)</span>
     </h3>
