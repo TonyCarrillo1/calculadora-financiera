@@ -232,32 +232,20 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
             icon_header = "🔹"
             opacity = "0.85"
 
-        # CORRECCIÓN ROJA: Se eliminó la indentación del HTML para evitar que se renderice como código.
-        st.markdown(f"""
-<div style="
-    background-color: {bg_color};
-    border: 1px solid {border_color};
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: {shadow};
-    margin-bottom: 20px;
-    transition: all 0.3s ease;
-    opacity: {opacity};
-">
+        # CORRECCIÓN: HTML sin sangría para evitar que se renderice como código
+        card_html = f"""
+<div style="background-color: {bg_color}; border: 1px solid {border_color}; border-radius: 12px; padding: 20px; box-shadow: {shadow}; margin-bottom: 20px; transition: all 0.3s ease; opacity: {opacity};">
     <h3 style="margin-top: 0; font-size: 1.3rem; color: #fff; border-bottom: 1px solid {border_color}; padding-bottom: 10px; margin-bottom: 15px;">
         {icon_header} {nombre} <span style="font-size: 0.8rem; color: #aaa; font-weight: normal;">({tasa_input}%)</span>
     </h3>
-
     <div style="margin-bottom: 15px;">
         <div style="font-size: 0.85rem; color: #a0aec0; text-transform: uppercase; letter-spacing: 1px;">Saldo Nominal Futuro</div>
         <div style="font-size: 2rem; font-weight: 700; color: #fff;">₡ {res['saldo_nominal']:,.0f}</div>
     </div>
-
     <div style="margin-bottom: 20px;">
         <div style="font-size: 0.85rem; color: #a0aec0;">Valor Real (Poder de compra hoy)</div>
         <div style="font-size: 1.4rem; font-weight: 600; color: #48bb78;">₡ {res['saldo_real']:,.0f}</div>
     </div>
-
     <div style="background-color: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; font-size: 0.9rem;">
         <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
             <span style="color: #cbd5e0;">Inversión:</span>
@@ -269,7 +257,8 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
         </div>
     </div>
 </div>
-""", unsafe_allow_html=True)
+"""
+        st.markdown(card_html, unsafe_allow_html=True)
 
 st.markdown("---")
 
