@@ -13,37 +13,51 @@ st.set_page_config(
 # --- ESTILOS CSS PROFESIONALES (THEME OVERRIDE) ---
 st.markdown("""
 <style>
-    /* Fondo General con Degradado Profesional */
+    /* FONDO DEGRADADO "MIDNIGHT SLATE"
+       Más visible que el anterior. Va de oscuro arriba a un tono acero abajo.
+    */
     .stApp {
-        background: linear-gradient(180deg, #0e1117 0%, #161b24 100%);
+        background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
+        background-attachment: fixed; /* Mantiene el fondo fijo al hacer scroll */
     }
     
-    /* Contenedores de Métricas (Tarjetas) */
+    /* TARJETAS (Métricas) 
+       Efecto "Glassmorphism" (Vidrio esmerilado) para que resalten sobre el degradado.
+    */
     div[data-testid="stMetric"] {
-        background-color: rgba(255, 255, 255, 0.03); /* Fondo translúcido sutil */
+        background-color: rgba(255, 255, 255, 0.05); 
+        backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.1);
         padding: 20px;
         border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
         transition: transform 0.2s ease-in-out;
     }
     
     div[data-testid="stMetric"]:hover {
-        border-color: rgba(255, 255, 255, 0.3);
+        border-color: rgba(255, 255, 255, 0.4);
+        transform: translateY(-2px);
     }
 
-    /* Ajuste de Tipografía para Títulos */
+    /* Ajuste de Tipografía para Títulos - Color blanco/hueso para contraste */
     h1, h2, h3 {
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
         font-weight: 600;
         letter-spacing: -0.5px;
-        color: #f0f2f6;
+        color: #ffffff !important;
+        text-shadow: 0px 2px 4px rgba(0,0,0,0.5); /* Sombra para legibilidad */
     }
     
-    /* Personalización del Expander */
+    /* Texto normal en blanco para que se lea sobre el fondo oscuro */
+    p, li, label, .stMarkdown {
+        color: #e0e0e0 !important;
+    }
+    
+    /* Ajustes del Expander para que combine */
     .streamlit-expanderHeader {
-        font-weight: 500;
-        color: #e0e0e0;
+        background-color: rgba(255,255,255,0.05);
+        color: #ffffff !important;
+        border-radius: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
