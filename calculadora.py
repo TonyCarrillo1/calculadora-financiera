@@ -13,56 +13,48 @@ st.set_page_config(
 # --- ESTILOS CSS PROFESIONALES (THEME OVERRIDE) ---
 st.markdown("""
 <style>
-    /* FONDO DEGRADADO "MIDNIGHT SLATE"
-       Más visible que el anterior. Va de oscuro arriba a un tono acero abajo.
-    */
+    /* FONDO "MIDNIGHT DEEP" - Más oscuro y elegante */
     .stApp {
-        background: linear-gradient(to bottom, #0f2027, #203a43, #2c5364);
-        background-attachment: fixed; /* Mantiene el fondo fijo al hacer scroll */
+        background-color: #0e1117;
+        background-image: radial-gradient(circle at 50% 0%, #1c2331 0%, #0e1117 70%);
+        background-attachment: fixed;
     }
     
-    /* TARJETAS (Métricas) 
-       Efecto "Glassmorphism" (Vidrio esmerilado) para que resalten sobre el degradado.
-    */
-    div[data-testid="stMetric"] {
-        background-color: rgba(255, 255, 255, 0.05); 
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        padding: 20px;
-        border-radius: 12px;
-        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-        transition: transform 0.2s ease-in-out;
-    }
-    
-    div[data-testid="stMetric"]:hover {
-        border-color: rgba(255, 255, 255, 0.4);
-        transform: translateY(-2px);
-    }
-
-    /* Ajuste de Tipografía para Títulos - Color blanco/hueso para contraste */
+    /* ESTILOS GLOBALES DE TEXTO */
     h1, h2, h3 {
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        color: #ffffff !important;
+        font-family: 'Segoe UI', Helvetica, Arial, sans-serif;
         font-weight: 600;
-        letter-spacing: -0.5px;
-        color: #ffffff !important;
-        text-shadow: 0px 2px 4px rgba(0,0,0,0.5); /* Sombra para legibilidad */
+        letter-spacing: -0.02em;
     }
     
-    /* Texto normal en blanco para que se lea sobre el fondo oscuro */
-    p, li, label, .stMarkdown {
-        color: #e0e0e0 !important;
+    p, label, .stMarkdown, .caption {
+        color: #cfd8dc !important;
     }
     
-    /* Ajustes del Expander para que combine */
+    /* INPUTS & WIDGETS */
+    .stNumberInput input, .stDateInput input, .stSelectbox div[data-baseweb="select"] {
+        background-color: #1a1f29; 
+        color: white; 
+        border: 1px solid #2d3748;
+    }
+    
+    /* EXPANDER ESTILIZADO */
     .streamlit-expanderHeader {
-        background-color: rgba(255,255,255,0.05);
-        color: #ffffff !important;
+        background-color: #1a1f29 !important;
+        border: 1px solid #2d3748;
         border-radius: 8px;
+        color: white !important;
+    }
+    
+    /* QUITANDO PADDING EXTRA SUPERIOR */
+    .block-container {
+        padding-top: 2rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- TÍTULOS (LIMPIOS SIN EMOJIS) ---
+# --- TÍTULOS ---
 st.title("Simulador de Inversión Avanzado")
 st.markdown("Proyecta el crecimiento de tu patrimonio con aportes mensuales y **extraordinarios**.")
 
@@ -70,9 +62,7 @@ st.markdown("Proyecta el crecimiento de tu patrimonio con aportes mensuales y **
 with st.sidebar:
     st.header("1. Tu Inversión")
     
-    # Fecha de inicio para calcular cuándo caen los abonos
     fecha_inicio = st.date_input("Fecha de Inicio", value=date.today())
-    
     saldo_inicial = st.number_input("Saldo Inicial (₡)", value=0, step=100000, format="%d")
     aporte_mensual = st.number_input("Aporte Mensual (₡)", value=20000, step=5000, format="%d")
     plazo_anos = st.number_input("Plazo (Años)", value=30, min_value=1, step=1)
@@ -112,7 +102,7 @@ with st.sidebar:
     
     st.markdown("---")
     
-    # NUEVO: Control de Visualización
+    # Control de Visualización
     st.header("5. Visualización")
     escenario_view = st.selectbox(
         "Seleccionar Escenario a Detallar", 
@@ -136,7 +126,7 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
         
         for index, row in df_limpio.iterrows():
             try:
-                # CORRECCIÓN CLAVE: Forzamos la conversión a fecha real
+                # Conversión forzada de fecha
                 fecha_abono = pd.to_datetime(row["Fecha"])
                 monto_abono = float(row["Monto"])
                 
@@ -207,7 +197,6 @@ escenarios_data = {
 }
 
 # --- VISUALIZACIÓN ---
-# TÍTULO LIMPIO (Sin emoji)
 st.markdown("### Resultados Comparativos")
 
 cols = st.columns(3)
@@ -226,37 +215,65 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
     datos_grafico[nombre] = puntos
     
     with col:
-        # Detectar si este escenario es el seleccionado
+        # --- DISEÑO DE TARJETA UNIFICADO ---
+        # Definimos estilos dinámicos según selección
         is_selected = (escenario_view == nombre)
         
         if is_selected:
-            # Resaltado visual con fondo dorado y borde
-            st.markdown(f"""
-            <div style="background-color: rgba(255, 215, 0, 0.1); padding: 15px; border-radius: 10px; border: 1px solid rgba(255, 215, 0, 0.5); text-align: center; margin-bottom: 15px; box-shadow: 0 0 15px rgba(255, 215, 0, 0.1);">
-                <h4 style="margin:0; color: #ffd700; font-family: 'Helvetica Neue', sans-serif;">🎯 {nombre} ({tasa_input}%)</h4>
-            </div>
-            """, unsafe_allow_html=True)
+            border_color = "#ffd700"  # Dorado
+            bg_color = "rgba(255, 215, 0, 0.08)" # Fondo dorado muy sutil
+            shadow = "0 0 20px rgba(255, 215, 0, 0.15)" # Resplandor
+            icon_header = "🌟"
+            opacity = "1"
         else:
-            st.subheader(f"{nombre} ({tasa_input}%)")
-            
-        st.metric(label="Saldo Nominal Futuro", value=f"₡ {res['saldo_nominal']:,.0f}")
-        
+            border_color = "rgba(255, 255, 255, 0.1)" # Borde sutil
+            bg_color = "rgba(255, 255, 255, 0.03)" # Fondo casi transparente
+            shadow = "none"
+            icon_header = "🔹"
+            opacity = "0.85" # Un poco más apagado para que no compita
+
+        # Generamos la tarjeta COMPLETA en HTML
         st.markdown(f"""
-        <div style="margin-top: -10px; margin-bottom: 10px;">
-            <span style="font-size: 0.9em; color: #a0a0a0;">Valor Real (Poder de compra hoy)</span><br>
-            <span style="font-size: 1.4em; font-weight: bold; color: #4ade80;">₡ {res['saldo_real']:,.0f}</span>
+        <div style="
+            background-color: {bg_color};
+            border: 1px solid {border_color};
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: {shadow};
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            opacity: {opacity};
+        ">
+            <!-- Encabezado -->
+            <h3 style="margin-top: 0; font-size: 1.3rem; color: #fff; border-bottom: 1px solid {border_color}; padding-bottom: 10px; margin-bottom: 15px;">
+                {icon_header} {nombre} <span style="font-size: 0.8rem; color: #aaa; font-weight: normal;">({tasa_input}%)</span>
+            </h3>
+
+            <!-- Dato Principal -->
+            <div style="margin-bottom: 15px;">
+                <div style="font-size: 0.85rem; color: #a0aec0; text-transform: uppercase; letter-spacing: 1px;">Saldo Nominal Futuro</div>
+                <div style="font-size: 2rem; font-weight: 700; color: #fff;">₡ {res['saldo_nominal']:,.0f}</div>
+            </div>
+
+            <!-- Dato Secundario (Valor Real) -->
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 0.85rem; color: #a0aec0;">Valor Real (Poder de compra hoy)</div>
+                <div style="font-size: 1.4rem; font-weight: 600; color: #48bb78;">₡ {res['saldo_real']:,.0f}</div>
+            </div>
+
+            <!-- Footer con Datos Extra -->
+            <div style="background-color: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; font-size: 0.9rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span style="color: #cbd5e0;">Inversión:</span>
+                    <span style="color: #fff; font-weight: 500;">₡ {res['total_depositado']:,.0f}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between;">
+                    <span style="color: #cbd5e0;">Ganancia:</span>
+                    <span style="color: #63b3ed; font-weight: 500;">₡ {res['saldo_nominal'] - res['total_depositado']:,.0f}</span>
+                </div>
+            </div>
         </div>
         """, unsafe_allow_html=True)
-        
-        ganancia_pura = res['saldo_nominal'] - res['total_depositado']
-        
-        # Mensaje final: Verde si es seleccionado, Azul si no
-        msg = f"**Inversión Total:** ₡ {res['total_depositado']:,.0f}\n\n**Ganancia Intereses:** ₡ {ganancia_pura:,.0f}"
-        
-        if is_selected:
-            st.success(msg, icon="🌟")
-        else:
-            st.info(msg, icon="💰")
 
 st.markdown("---")
 
@@ -298,7 +315,7 @@ with tab2:
     })
     
     # Gráfico de área apilada
-    st.area_chart(datos_area, color=["#1f77b4", "#aec7e8"])
+    st.area_chart(datos_area, color=["#3182ce", "#90cdf4"]) # Azules corporativos
     st.info("💡 **Observa:** La zona clara (Intereses) empieza pequeña, pero con el tiempo se vuelve más grande que la zona oscura (Tu Aporte).")
 
 # TAB 3: Nominal vs Real
@@ -313,7 +330,7 @@ with tab3:
         "Valor Real (Poder de Compra)": [res_target["serie_real"][i*12] for i in range(plazo_anos + 1)]
     })
     
-    st.line_chart(datos_realidad, color=["#1f77b4", "#2ca02c"])
+    st.line_chart(datos_realidad, color=["#63b3ed", "#48bb78"]) # Azul claro y Verde éxito
     st.warning(f"⚠️ **Atención:** La brecha entre la línea azul y la verde es el efecto de la inflación ({inflacion}% anual).")
 
 # TAB 4: Tabla
