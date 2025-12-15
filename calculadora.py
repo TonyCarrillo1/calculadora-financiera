@@ -183,8 +183,9 @@ with st.sidebar:
         if not abonos_df.empty:
             df_valido = abonos_df.dropna(subset=["Fecha", "Monto"])
             if not df_valido.empty:
-                total_abonos = df_valido['Monto'].sum()
-                st.success(f"✅ **{len(df_valido)} abonos** programados por **₡{total_abonos:,.0f}**")
+                total_abonos = float(df_valido['Monto'].sum())
+                num_abonos = int(len(df_valido))
+                st.success(f"✅ **{num_abonos} abonos** programados por **₡{total_abonos:,.0f}**")
     
     st.markdown("---")
     st.header("5. Visualización")
