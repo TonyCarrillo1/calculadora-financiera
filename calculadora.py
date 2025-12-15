@@ -150,7 +150,7 @@ with st.sidebar:
     
     # VALIDACIÓN: Comisión no puede ser 100% o más
     if comision >= 100:
-        st.error("⛔ La comisión no puede ser 100% o mayor (¡no tendrías ganancia!)")
+        st.error("⛔ La comisión no puede ser 100% o mayor")
         st.stop()
 
     st.markdown("---")
@@ -162,10 +162,6 @@ with st.sidebar:
 
     st.markdown("---")
     st.header("4. Abonos Extraordinarios")
-    
-    # Verificar si hay abonos para expandir automáticamente
-    if 'abonos_df_temp' not in st.session_state:
-        st.session_state.abonos_df_temp = pd.DataFrame(columns=["Fecha", "Monto"])
     
     with st.expander("Gestionar Abonos", expanded=True):
         df_base = pd.DataFrame(columns=["Fecha", "Monto"])
@@ -179,30 +175,27 @@ with st.sidebar:
             key="abonos_editor"
         )
         
-        # MEJORA: Mostrar resumen de abonos válidos
+        # Resumen de abonos válidos
         if not abonos_df.empty:
-            # Filtrar solo filas que tengan AMBOS valores (Fecha Y Monto)
             df_valido = abonos_df.dropna(subset=["Fecha", "Monto"])
             
-            # Verificar que haya filas válidas y que 'Monto' tenga valores
             if len(df_valido) > 0:
                 try:
-                    # Convertir a numérico forzando errores a NaN
                     montos_numericos = pd.to_numeric(df_valido['Monto'], errors='coerce')
                     total_abonos = montos_numericos.sum()
                     
-                    # Solo mostrar si el total es mayor a 0
                     if total_abonos > 0:
                         num_abonos = len(df_valido)
-                        st.success(f"✅ **{num_abonos} abono{'s' if num_abonos > 1 else ''}** programado{'s' if num_abonos > 1 else ''} por **₡{total_abonos:,.0f}**")
+                        st.success(f"✅ **{num_abonos} abono{'s' if num_abonos > 1 else ''}** por **₡{total_abonos:,.0f}**")
                 except Exception:
-                    pass  # Silenciar errores de conversión
+                    pass 
     
     st.markdown("---")
     st.header("5. Visualización")
     escenario_view = st.selectbox("Seleccionar Escenario", ["Todos", "Conservador", "Moderado", "Optimista"])
 
-# --- FUNCIÓN DE CÁLCULO ---
+# --- FUNCIÓN DE CÁLCULO (OPTIMIZADA CON CACHÉ) ---
+@st.cache_data
 def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_pct, inflacion_pct, abonos_extra_df, start_date):
     meses = int(anos * 12)
     abonos_map = {}
@@ -211,69 +204,67 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
     if start_date is None: 
         start_date = date.today()
     
-    # Procesar abonos extraordinarios
+    # Procesar abonos extraordinarios (CORREGIDO PARA EVITAR ERRORES)
     if not abonos_extra_df.empty:
-        df_limpio = abonos_extra_df.dropna(subset=["Fecha", "Monto"]).copy()
+        # 1. Aseguramos copia para no afectar el original
+        df_limpio = abonos_extra_df.copy()
         
         for index, row in df_limpio.iterrows():
             try:
-                # Convertir fecha - manejar diferentes formatos
-                fecha_abono = pd.to_datetime(row["Fecha"]).date()
+                # 2. Validación estricta de Fecha
+                raw_fecha = row["Fecha"]
+                if pd.isna(raw_fecha) or str(raw_fecha).strip() == "":
+                    continue # Ignorar filas vacías
                 
-                # Convertir monto de forma más robusta
+                # Convertir a Timestamp de Pandas primero (más robusto)
+                ts = pd.to_datetime(raw_fecha, errors='coerce')
+                
+                # Si falló la conversión (NaT), saltar
+                if pd.isna(ts):
+                    abonos_ignorados.append(f"Fila {index+1}: Fecha inválida")
+                    continue
+                    
+                # Ahora es seguro convertir a .date()
+                fecha_abono = ts.date()
+                
+                # 3. Validación estricta de Monto
                 monto_raw = row["Monto"]
-                
-                # Si es string, limpiar formato
                 if isinstance(monto_raw, str):
                     monto_raw = monto_raw.replace(",", "").replace("₡", "").strip()
                 
-                # Convertir a numérico usando pandas (más robusto)
                 monto_abono = pd.to_numeric(monto_raw, errors='coerce')
                 
-                # Validar que la conversión fue exitosa
                 if pd.isna(monto_abono):
-                    abonos_ignorados.append(f"Fila {index+1}: No se pudo convertir el monto '{row['Monto']}'")
+                    abonos_ignorados.append(f"Fila {index+1}: Monto inválido")
                     continue
                 
                 monto_abono = float(monto_abono)
                 
-                # Validar monto positivo
                 if monto_abono <= 0:
-                    abonos_ignorados.append(f"Fila {index+1}: Monto debe ser positivo (recibido: {monto_abono})")
-                    continue
+                    continue 
                 
-                # Validar que la fecha no sea muy antigua (permitir desde hace 1 año)
-                fecha_minima = start_date - timedelta(days=365)
-                if fecha_abono < fecha_minima:
-                    abonos_ignorados.append(f"Fila {index+1}: Fecha {fecha_abono.strftime('%d/%m/%Y')} es muy antigua")
-                    continue
-                
-                # Calcular diferencia en meses desde la fecha de inicio
+                # 4. Cálculo de tiempo (diff_meses)
                 diff_meses = (fecha_abono.year - start_date.year) * 12 + (fecha_abono.month - start_date.month)
                 
-                # Aceptar abonos desde el mes 0 hasta el último mes del plazo
                 if 0 <= diff_meses < meses:
                     abonos_map[diff_meses] = abonos_map.get(diff_meses, 0) + monto_abono
                 elif diff_meses < 0:
-                    # Fecha anterior al inicio pero dentro del año permitido
-                    abonos_ignorados.append(f"Fila {index+1}: Fecha {fecha_abono.strftime('%d/%m/%Y')} es anterior al inicio ({start_date.strftime('%d/%m/%Y')})")
+                    abonos_ignorados.append(f"Fila {index+1}: Fecha anterior al inicio")
                 else:
-                    # Fecha posterior al plazo
-                    fecha_limite = start_date + timedelta(days=365*anos)
-                    abonos_ignorados.append(f"Fila {index+1}: Fecha {fecha_abono.strftime('%d/%m/%Y')} supera el plazo (límite: {fecha_limite.strftime('%d/%m/%Y')})")
+                    abonos_ignorados.append(f"Fila {index+1}: Fecha fuera del plazo de {anos} años")
                     
-            except ValueError as e:
-                abonos_ignorados.append(f"Fila {index+1}: Formato de fecha inválido")
             except Exception as e:
-                abonos_ignorados.append(f"Fila {index+1}: Error inesperado - {str(e)[:80]}")
+                # Captura genérica para evitar pantalla roja
+                abonos_ignorados.append(f"Fila {index+1}: Error de procesamiento")
                 continue
 
-    # Cálculos de tasas
+    # Cálculos de tasas (Comisión sobre Rendimiento)
+    # Tasa Neta = Tasa Bruta * (1 - %Comisión)
     tasa_neta_nominal_anual = (tasa_bruta_pct / 100) * (1 - (comision_pct / 100))
     tasa_mensual_efectiva = (1 + tasa_neta_nominal_anual)**(1/12) - 1
     inflacion_mensual = (1 + inflacion_pct/100)**(1/12) - 1
     
-    # Proyección mes a mes
+    # Proyección
     valores_nominales = [inicial]
     serie_aportes = [inicial] 
     serie_real = [inicial]    
@@ -282,6 +273,7 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
     for i in range(meses):
         interes = valores_nominales[-1] * tasa_mensual_efectiva
         extra_este_mes = abonos_map.get(i, 0)
+        
         nuevo_saldo = valores_nominales[-1] + interes + aporte + extra_este_mes
         nuevo_aporte_acumulado = total_depositado + aporte + extra_este_mes
         factor_inflacion = (1 + inflacion_mensual)**(i+1)
@@ -315,7 +307,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# MEJORA: Mostrar advertencias de abonos ignorados UNA SOLA VEZ
+# Control de advertencias
 advertencias_mostradas = False
 
 cols = st.columns(3)
@@ -330,20 +322,17 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
     resultados_completos[nombre] = res
     datos_grafico[nombre] = [res["serie_nominal"][i*12] for i in range(plazo_anos + 1)]
     
-    # MEJORA: Mostrar advertencias solo una vez
+    # Mostrar advertencias solo una vez
     if not advertencias_mostradas and res["abonos_ignorados"]:
         with st.container():
-            st.warning(f"⚠️ **{len(res['abonos_ignorados'])} abonos fueron ignorados:**")
-            for adv in res["abonos_ignorados"][:5]:  # Mostrar máximo 5
+            st.warning(f"⚠️ **{len(res['abonos_ignorados'])} abonos ignorados:**")
+            for adv in res["abonos_ignorados"][:3]:
                 st.caption(f"  • {adv}")
-            if len(res["abonos_ignorados"]) > 5:
-                st.caption(f"  ... y {len(res['abonos_ignorados']) - 5} más")
         advertencias_mostradas = True
     
     with col:
         is_selected = (escenario_view == nombre)
         
-        # FIX CRÍTICO: Colores dorados para seleccionado
         if is_selected:
             border = "2px solid #fbbf24"
             bg = "rgba(251, 191, 36, 0.12)"
@@ -360,6 +349,7 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
         ganancia = res['saldo_nominal'] - res['total_depositado']
         roi = (ganancia / res['total_depositado']) * 100 if res['total_depositado'] > 0 else 0
 
+        # Tarjetas HTML
         card_html = textwrap.dedent(f"""
             <div style="background: {bg}; border: {border}; border-radius: 12px; padding: 20px; box-shadow: {shadow}; margin-bottom: 20px; opacity: {opacity}; backdrop-filter: blur(10px); transition: all 0.3s ease;">
                 <h3 style="margin: 0 0 15px 0; font-size: 1.3rem; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
@@ -404,39 +394,34 @@ res_target = resultados_completos[target_escenario]
 # TAB 1: Crecimiento
 with tab1:
     if escenario_view == "Todos":
-        st.subheader("📊 Evolución Comparativa de los 3 Escenarios")
+        st.subheader("📊 Evolución Comparativa")
         st.line_chart(datos_grafico, use_container_width=True, color=["#6366f1", "#fbbf24", "#10b981"])
         
         st.markdown("""
-        <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; padding: 12px; margin-top: 12px;">
-            <span style="color: #6366f1; font-weight: 600;">━━</span> Conservador | 
-            <span style="color: #fbbf24; font-weight: 600;">━━</span> Moderado | 
+        <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; padding: 12px; margin-top: 12px; text-align: center;">
+            <span style="color: #6366f1; font-weight: 600;">━━</span> Conservador &nbsp;|&nbsp; 
+            <span style="color: #fbbf24; font-weight: 600;">━━</span> Moderado &nbsp;|&nbsp; 
             <span style="color: #10b981; font-weight: 600;">━━</span> Optimista
         </div>
         """, unsafe_allow_html=True)
     else:
-        st.subheader(f"📈 Proyección - Escenario {escenario_view}")
+        st.subheader(f"📈 Proyección - {escenario_view}")
         colors = {"Conservador": "#6366f1", "Moderado": "#fbbf24", "Optimista": "#10b981"}
         st.line_chart(datos_grafico[escenario_view], use_container_width=True, color=colors[escenario_view])
-        st.caption(f"Visualizando: **{escenario_view}** con tasa del **{escenarios_data[escenario_view]}%**")
 
 # TAB 2: Composición
 with tab2:
     st.subheader(f"💎 Composición de Tu Patrimonio")
-    st.caption(f"Analizando escenario: **{target_escenario}** ({escenarios_data[target_escenario]}%)")
     
     datos_area = pd.DataFrame({
         "💵 Tu Capital": [res_target["serie_aportes"][i*12] for i in range(plazo_anos + 1)],
-        "✨ Intereses Compuestos": [(res_target["serie_nominal"][i*12] - res_target["serie_aportes"][i*12]) for i in range(plazo_anos + 1)]
+        "✨ Intereses": [(res_target["serie_nominal"][i*12] - res_target["serie_aportes"][i*12]) for i in range(plazo_anos + 1)]
     })
     st.area_chart(datos_area, color=["#475569", "#fbbf24"], use_container_width=True)
-    
-    st.info("💡 La zona **dorada** representa el dinero que trabaja para ti. Con el tiempo, supera tus aportes iniciales.")
 
-# TAB 3: Inflación con ANÁLISIS DETALLADO
+# TAB 3: Inflación
 with tab3:
     st.subheader(f"⚖️ Impacto de la Inflación")
-    st.caption(f"Analizando escenario: **{target_escenario}** ({escenarios_data[target_escenario]}%)")
     
     datos_realidad = pd.DataFrame({
         "💵 Saldo Nominal": [res_target["serie_nominal"][i*12] for i in range(plazo_anos + 1)],
@@ -444,37 +429,26 @@ with tab3:
     })
     st.line_chart(datos_realidad, color=["#60a5fa", "#10b981"], use_container_width=True)
     
-    # MEJORA: Cálculo y visualización del impacto
     perdida_inflacion = res_target["saldo_nominal"] - res_target["saldo_real"]
-    porcentaje_perdida = (perdida_inflacion / res_target["saldo_nominal"]) * 100
+    porcentaje_perdida = (perdida_inflacion / res_target["saldo_nominal"]) * 100 if res_target["saldo_nominal"] > 0 else 0
     
     st.markdown(f"""
-    <div style="background: linear-gradient(145deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05)); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 20px; margin-top: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
+    <div style="background: linear-gradient(145deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05)); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 20px; margin-top: 16px;">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
-            <div style="font-size: 2rem;">⚠️</div>
+            <div style="font-size: 1.5rem;">⚠️</div>
             <div>
-                <div style="color: #fbbf24; font-weight: 700; font-size: 1.1rem;">Erosión por Inflación</div>
-                <div style="color: #94a3b8; font-size: 0.85rem;">Inflación anual: {inflacion}%</div>
+                <div style="color: #fbbf24; font-weight: 700;">Erosión por Inflación ({inflacion}%)</div>
             </div>
         </div>
-        <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 14px; margin-top: 12px;">
-            <div style="color: #cbd5e1; font-size: 0.95rem; line-height: 1.8;">
-                📉 <strong style="color: #ef4444;">Pérdida de poder adquisitivo:</strong><br>
-                <span style="font-size: 1.4rem; color: #f87171; font-weight: 700;">₡{perdida_inflacion:,.0f}</span>
-                <span style="color: #94a3b8; margin-left: 8px;">({porcentaje_perdida:.1f}% del saldo nominal)</span>
-            </div>
-        </div>
-        <div style="color: #cbd5e1; font-size: 0.85rem; margin-top: 14px; line-height: 1.6; padding-top: 14px; border-top: 1px solid rgba(148, 163, 184, 0.2);">
-            💡 <strong>Interpretación:</strong> Aunque tendrás ₡{res_target["saldo_nominal"]:,.0f} nominales, 
-            tu poder de compra será equivalente a ₡{res_target["saldo_real"]:,.0f} de hoy. 
-            Es por eso que debes invertir en activos que superen la inflación.
+        <div style="color: #cbd5e1; font-size: 0.95rem;">
+            Pérdida de poder adquisitivo: <strong style="color: #f87171;">₡{perdida_inflacion:,.0f}</strong> ({porcentaje_perdida:.1f}%)
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-# TAB 4: Tabla con exportación mejorada
+# TAB 4: Tabla
 with tab4:
-    st.subheader("📊 Proyección Detallada Año por Año")
+    st.subheader("📊 Tabla de Datos")
     
     tabla_completa = pd.DataFrame({"Año": range(plazo_anos + 1)})
     for nombre in escenarios_data.keys():
@@ -488,23 +462,5 @@ with tab4:
         height=400
     )
     
-    # Panel de exportación mejorado
-    st.markdown("""
-    <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(251, 191, 36, 0.2); border-radius: 10px; padding: 16px; margin-top: 16px;">
-        <div style="color: #fbbf24; font-weight: 600; margin-bottom: 8px;">📥 Exportar Datos</div>
-        <div style="color: #cbd5e1; font-size: 0.85rem;">
-            Descarga la proyección completa para análisis en Excel o Google Sheets
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-    
     csv = tabla_completa.to_csv(index=False).encode('utf-8')
-    
-    if st.download_button(
-        "⬇️ Descargar Proyección Completa (CSV)", 
-        data=csv, 
-        file_name=f"proyeccion_inversion_{date.today()}.csv", 
-        mime="text/csv", 
-        use_container_width=True
-    ):
-        st.success("✅ Archivo generado correctamente")
+    st.download_button("⬇️ Descargar Excel (CSV)", data=csv, file_name=f"proyeccion_{date.today()}.csv", mime="text/csv")
