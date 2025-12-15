@@ -204,27 +204,25 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
     if start_date is None: 
         start_date = date.today()
     
-    # Procesar abonos extraordinarios (CORREGIDO PARA EVITAR ERRORES)
+    # Procesar abonos extraordinarios (CORREGIDO Y ROBUSTO)
     if not abonos_extra_df.empty:
-        # 1. Aseguramos copia para no afectar el original
         df_limpio = abonos_extra_df.copy()
         
         for index, row in df_limpio.iterrows():
             try:
-                # 2. Validación estricta de Fecha
+                # 2. Validación estricta de Fecha con dayfirst=True para formato CR
                 raw_fecha = row["Fecha"]
                 if pd.isna(raw_fecha) or str(raw_fecha).strip() == "":
                     continue # Ignorar filas vacías
                 
-                # Convertir a Timestamp de Pandas primero (más robusto)
-                ts = pd.to_datetime(raw_fecha, errors='coerce')
+                # Convertir a Timestamp forzando día primero (DD/MM/YYYY)
+                ts = pd.to_datetime(raw_fecha, dayfirst=True, errors='coerce')
                 
                 # Si falló la conversión (NaT), saltar
                 if pd.isna(ts):
-                    abonos_ignorados.append(f"Fila {index+1}: Fecha inválida")
+                    abonos_ignorados.append(f"Fila {index+1}: Fecha inválida (Formato esperado DD/MM/AAAA)")
                     continue
                     
-                # Ahora es seguro convertir a .date()
                 fecha_abono = ts.date()
                 
                 # 3. Validación estricta de Monto
@@ -249,17 +247,16 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
                 if 0 <= diff_meses < meses:
                     abonos_map[diff_meses] = abonos_map.get(diff_meses, 0) + monto_abono
                 elif diff_meses < 0:
-                    abonos_ignorados.append(f"Fila {index+1}: Fecha anterior al inicio")
+                    # Mensaje detallado para entender por qué se ignora
+                    abonos_ignorados.append(f"Fila {index+1}: Fecha {fecha_abono.strftime('%d/%m/%Y')} es anterior al inicio ({start_date.strftime('%d/%m/%Y')})")
                 else:
                     abonos_ignorados.append(f"Fila {index+1}: Fecha fuera del plazo de {anos} años")
                     
             except Exception as e:
-                # Captura genérica para evitar pantalla roja
-                abonos_ignorados.append(f"Fila {index+1}: Error de procesamiento")
+                abonos_ignorados.append(f"Fila {index+1}: Error de procesamiento ({str(e)})")
                 continue
 
     # Cálculos de tasas (Comisión sobre Rendimiento)
-    # Tasa Neta = Tasa Bruta * (1 - %Comisión)
     tasa_neta_nominal_anual = (tasa_bruta_pct / 100) * (1 - (comision_pct / 100))
     tasa_mensual_efectiva = (1 + tasa_neta_nominal_anual)**(1/12) - 1
     inflacion_mensual = (1 + inflacion_pct/100)**(1/12) - 1
@@ -325,8 +322,8 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
     # Mostrar advertencias solo una vez
     if not advertencias_mostradas and res["abonos_ignorados"]:
         with st.container():
-            st.warning(f"⚠️ **{len(res['abonos_ignorados'])} abonos ignorados:**")
-            for adv in res["abonos_ignorados"][:3]:
+            st.warning(f"⚠️ **{len(res['abonos_ignorados'])} abonos no procesados (revisar fechas):**")
+            for adv in res["abonos_ignorados"][:5]:
                 st.caption(f"  • {adv}")
         advertencias_mostradas = True
     
