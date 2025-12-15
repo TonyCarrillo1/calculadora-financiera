@@ -219,11 +219,27 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
             try:
                 # Convertir fecha - manejar diferentes formatos
                 fecha_abono = pd.to_datetime(row["Fecha"]).date()
-                monto_abono = float(row["Monto"])
+                
+                # Convertir monto de forma más robusta
+                monto_raw = row["Monto"]
+                
+                # Si es string, limpiar formato
+                if isinstance(monto_raw, str):
+                    monto_raw = monto_raw.replace(",", "").replace("₡", "").strip()
+                
+                # Convertir a numérico usando pandas (más robusto)
+                monto_abono = pd.to_numeric(monto_raw, errors='coerce')
+                
+                # Validar que la conversión fue exitosa
+                if pd.isna(monto_abono):
+                    abonos_ignorados.append(f"Fila {index+1}: No se pudo convertir el monto '{row['Monto']}'")
+                    continue
+                
+                monto_abono = float(monto_abono)
                 
                 # Validar monto positivo
                 if monto_abono <= 0:
-                    abonos_ignorados.append(f"Fila {index+1}: Monto debe ser positivo")
+                    abonos_ignorados.append(f"Fila {index+1}: Monto debe ser positivo (recibido: {monto_abono})")
                     continue
                 
                 # Validar que la fecha no sea muy antigua (permitir desde hace 1 año)
@@ -248,10 +264,8 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
                     
             except ValueError as e:
                 abonos_ignorados.append(f"Fila {index+1}: Formato de fecha inválido")
-            except TypeError as e:
-                abonos_ignorados.append(f"Fila {index+1}: Monto inválido")
             except Exception as e:
-                abonos_ignorados.append(f"Fila {index+1}: Error al procesar - {str(e)[:50]}")
+                abonos_ignorados.append(f"Fila {index+1}: Error inesperado - {str(e)[:80]}")
                 continue
 
     # Cálculos de tasas
