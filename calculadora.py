@@ -181,11 +181,22 @@ with st.sidebar:
         
         # MEJORA: Mostrar resumen de abonos válidos
         if not abonos_df.empty:
+            # Filtrar solo filas que tengan AMBOS valores (Fecha Y Monto)
             df_valido = abonos_df.dropna(subset=["Fecha", "Monto"])
-            if not df_valido.empty:
-                total_abonos = float(df_valido['Monto'].sum())
-                num_abonos = int(len(df_valido))
-                st.success(f"✅ **{num_abonos} abonos** programados por **₡{total_abonos:,.0f}**")
+            
+            # Verificar que haya filas válidas y que 'Monto' tenga valores
+            if len(df_valido) > 0:
+                try:
+                    # Convertir a numérico forzando errores a NaN
+                    montos_numericos = pd.to_numeric(df_valido['Monto'], errors='coerce')
+                    total_abonos = montos_numericos.sum()
+                    
+                    # Solo mostrar si el total es mayor a 0
+                    if total_abonos > 0:
+                        num_abonos = len(df_valido)
+                        st.success(f"✅ **{num_abonos} abono{'s' if num_abonos > 1 else ''}** programado{'s' if num_abonos > 1 else ''} por **₡{total_abonos:,.0f}**")
+                except Exception:
+                    pass  # Silenciar errores de conversión
     
     st.markdown("---")
     st.header("5. Visualización")
