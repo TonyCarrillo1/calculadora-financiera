@@ -35,7 +35,7 @@ st.markdown("""
         background-clip: text;
     }
     
-    /* Regla global para textos claros (pero permitimos sobrescribir) */
+    /* Regla global para textos claros */
     p, label, .stMarkdown, .caption {
         color: #cbd5e1 !important;
         font-family: 'Inter', system-ui, sans-serif;
@@ -66,13 +66,12 @@ st.markdown("""
         box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2);
     }
     
-    /* --- TABS PREMIUM (CORREGIDO PARA LEGIBILIDAD) --- */
+    /* --- TABS PREMIUM --- */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background: transparent;
     }
     
-    /* Estado Normal (No seleccionado) */
     .stTabs [data-baseweb="tab"] {
         background: rgba(30, 41, 59, 0.6);
         border: 1px solid rgba(255, 255, 255, 0.05);
@@ -81,24 +80,51 @@ st.markdown("""
         transition: all 0.3s ease;
     }
     
-    /* Estado Seleccionado - ALTO CONTRASTE */
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
         border: none;
-        box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4); /* Glow dorado suave */
+        box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
     }
 
-    /* FIX CRÍTICO: Forzar texto NEGRO/OSCURO dentro del tab seleccionado */
     .stTabs [data-baseweb="tab"][aria-selected="true"] p {
-        color: #0f172a !important; /* Azul muy oscuro para contraste máximo sobre dorado */
+        color: #0f172a !important; 
         font-weight: 800 !important;
     }
     
-    /* DATAFRAME FIX */
-    .stDataFrame {
-        background: transparent !important;
+    /* --- FIX: TABLAS Y DATA EDITOR (ELIMINAR FONDO BLANCO) --- */
+    [data-testid="stDataFrame"], [data-testid="stDataEditor"] {
+        background-color: transparent !important;
+        border: none !important;
     }
     
+    /* Forzar color oscuro en cabeceras de tabla */
+    [data-testid="stDataFrame"] th, [data-testid="stDataEditor"] th {
+        background-color: #1e293b !important; /* Azul oscuro */
+        color: #fbbf24 !important; /* Dorado */
+        border-bottom: 1px solid rgba(251, 191, 36, 0.2) !important;
+    }
+    
+    /* Forzar color oscuro en celdas y filas */
+    [data-testid="stDataFrame"] td, [data-testid="stDataEditor"] td {
+        background-color: #0f172a !important; /* Fondo App */
+        color: #cbd5e1 !important;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.1) !important;
+    }
+    
+    /* --- FIX: EXPANDER (GESTIONAR ABONOS) --- */
+    .streamlit-expanderHeader {
+        background-color: rgba(30, 41, 59, 0.6) !important;
+        color: #fbbf24 !important;
+        border: 1px solid rgba(251, 191, 36, 0.1);
+        border-radius: 8px;
+    }
+    
+    .streamlit-expanderContent {
+        background-color: transparent !important;
+        border: none !important;
+        padding-top: 10px !important;
+    }
+
     /* SCROLLBAR */
     ::-webkit-scrollbar {
         width: 10px;
