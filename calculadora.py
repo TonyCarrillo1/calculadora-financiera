@@ -20,6 +20,17 @@ st.markdown("""
         background-attachment: fixed;
     }
     
+    /* FIX: HEADER SUPERIOR (Donde está Share, Hamburger Menu, etc.) 
+       Lo hacemos transparente para que tome el color del fondo de la app */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+    }
+    
+    /* Asegurar que los iconos del header sean visibles (color claro) */
+    header[data-testid="stHeader"] .stActionIcon {
+        color: #cbd5e1 !important;
+    }
+    
     /* ESTILOS GLOBALES DE TEXTO */
     h1, h2, h3 {
         color: #ffffff !important;
