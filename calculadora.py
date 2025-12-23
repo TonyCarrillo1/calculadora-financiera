@@ -35,6 +35,7 @@ st.markdown("""
         background-clip: text;
     }
     
+    /* Regla global para textos claros (pero permitimos sobrescribir) */
     p, label, .stMarkdown, .caption {
         color: #cbd5e1 !important;
         font-family: 'Inter', system-ui, sans-serif;
@@ -65,26 +66,32 @@ st.markdown("""
         box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2);
     }
     
-    /* TABS PREMIUM */
+    /* --- TABS PREMIUM (CORREGIDO PARA LEGIBILIDAD) --- */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background: transparent;
     }
     
+    /* Estado Normal (No seleccionado) */
     .stTabs [data-baseweb="tab"] {
         background: rgba(30, 41, 59, 0.6);
         border: 1px solid rgba(255, 255, 255, 0.05);
         border-radius: 8px;
-        color: #cbd5e1;
         padding: 8px 16px;
         transition: all 0.3s ease;
     }
     
+    /* Estado Seleccionado - ALTO CONTRASTE */
     .stTabs [aria-selected="true"] {
         background: linear-gradient(135deg, #fbbf24, #f59e0b) !important;
-        color: #0f172a !important;
-        font-weight: 700;
         border: none;
+        box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4); /* Glow dorado suave */
+    }
+
+    /* FIX CRÍTICO: Forzar texto NEGRO/OSCURO dentro del tab seleccionado */
+    .stTabs [data-baseweb="tab"][aria-selected="true"] p {
+        color: #0f172a !important; /* Azul muy oscuro para contraste máximo sobre dorado */
+        font-weight: 800 !important;
     }
     
     /* DATAFRAME FIX */
@@ -195,7 +202,6 @@ with st.sidebar:
     escenario_view = st.selectbox("Seleccionar Escenario", ["Todos", "Conservador", "Moderado", "Optimista"])
 
 # --- FUNCIÓN DE CÁLCULO ---
-# CRÍTICO: Eliminamos @st.cache_data para asegurar que los abonos se actualicen en tiempo real
 def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_pct, inflacion_pct, abonos_extra_df, start_date):
     meses = int(anos * 12)
     abonos_map = {}
