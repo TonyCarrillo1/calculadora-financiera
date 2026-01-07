@@ -20,13 +20,10 @@ st.markdown("""
         background-attachment: fixed;
     }
     
-    /* FIX: HEADER SUPERIOR (Donde está Share, Hamburger Menu, etc.) 
-       Lo hacemos transparente para que tome el color del fondo de la app */
+    /* HEADER TRANSPARENTE */
     header[data-testid="stHeader"] {
         background: transparent !important;
     }
-    
-    /* Asegurar que los iconos del header sean visibles (color claro) */
     header[data-testid="stHeader"] .stActionIcon {
         color: #cbd5e1 !important;
     }
@@ -46,7 +43,6 @@ st.markdown("""
         background-clip: text;
     }
     
-    /* Regla global para textos claros */
     p, label, .stMarkdown, .caption {
         color: #cbd5e1 !important;
         font-family: 'Inter', system-ui, sans-serif;
@@ -77,7 +73,7 @@ st.markdown("""
         box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2);
     }
     
-    /* --- TABS PREMIUM --- */
+    /* TABS PREMIUM */
     .stTabs [data-baseweb="tab-list"] {
         gap: 8px;
         background: transparent;
@@ -102,27 +98,25 @@ st.markdown("""
         font-weight: 800 !important;
     }
     
-    /* --- FIX: TABLAS Y DATA EDITOR (ELIMINAR FONDO BLANCO) --- */
+    /* TABLAS Y DATA EDITOR (SIN FONDO BLANCO) */
     [data-testid="stDataFrame"], [data-testid="stDataEditor"] {
         background-color: transparent !important;
         border: none !important;
     }
     
-    /* Forzar color oscuro en cabeceras de tabla */
     [data-testid="stDataFrame"] th, [data-testid="stDataEditor"] th {
-        background-color: #1e293b !important; /* Azul oscuro */
-        color: #fbbf24 !important; /* Dorado */
+        background-color: #1e293b !important;
+        color: #fbbf24 !important;
         border-bottom: 1px solid rgba(251, 191, 36, 0.2) !important;
     }
     
-    /* Forzar color oscuro en celdas y filas */
     [data-testid="stDataFrame"] td, [data-testid="stDataEditor"] td {
-        background-color: #0f172a !important; /* Fondo App */
+        background-color: #0f172a !important;
         color: #cbd5e1 !important;
         border-bottom: 1px solid rgba(148, 163, 184, 0.1) !important;
     }
     
-    /* --- FIX: EXPANDER (GESTIONAR ABONOS) --- */
+    /* EXPANDER */
     .streamlit-expanderHeader {
         background-color: rgba(30, 41, 59, 0.6) !important;
         color: #fbbf24 !important;
@@ -174,7 +168,6 @@ with st.sidebar:
     
     fecha_inicio = st.date_input("Fecha de Inicio", value=date.today())
     
-    # VALIDACIÓN: Fecha no puede ser muy antigua
     if fecha_inicio < (date.today() - timedelta(days=365*5)):
         st.warning("⚠️ Fecha muy antigua. Se recomienda usar fechas recientes.")
     
@@ -182,7 +175,6 @@ with st.sidebar:
     aporte_mensual = st.number_input("Aporte Mensual (₡)", value=20000, min_value=0, step=5000, format="%d")
     plazo_anos = st.number_input("Plazo (Años)", value=30, min_value=1, max_value=50, step=1)
     
-    # VALIDACIÓN: Al menos uno debe tener valor
     if saldo_inicial == 0 and aporte_mensual == 0:
         st.error("⛔ Ingresa un **Saldo Inicial** o **Aporte Mensual** (o ambos)")
         st.stop()
@@ -192,7 +184,6 @@ with st.sidebar:
     inflacion = st.number_input("Inflación Anual (%)", value=3.0, min_value=0.0, max_value=50.0, step=0.1, format="%.1f")
     comision = st.number_input("Comisión Rendimientos (%)", value=10.0, min_value=0.0, max_value=99.9, step=0.5, format="%.1f")
     
-    # VALIDACIÓN: Comisión no puede ser 100% o más
     if comision >= 100:
         st.error("⛔ La comisión no puede ser 100% o mayor")
         st.stop()
@@ -219,15 +210,12 @@ with st.sidebar:
             key="abonos_editor"
         )
         
-        # Resumen de abonos válidos
         if not abonos_df.empty:
             df_valido = abonos_df.dropna(subset=["Fecha", "Monto"])
-            
             if len(df_valido) > 0:
                 try:
                     montos_numericos = pd.to_numeric(df_valido['Monto'], errors='coerce')
                     total_abonos = montos_numericos.sum()
-                    
                     if total_abonos > 0:
                         num_abonos = len(df_valido)
                         st.success(f"✅ **{num_abonos} abono{'s' if num_abonos > 1 else ''}** por **₡{total_abonos:,.0f}**")
@@ -239,6 +227,7 @@ with st.sidebar:
     escenario_view = st.selectbox("Seleccionar Escenario", ["Todos", "Conservador", "Moderado", "Optimista"])
 
 # --- FUNCIÓN DE CÁLCULO ---
+@st.cache_data
 def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_pct, inflacion_pct, abonos_extra_df, start_date):
     meses = int(anos * 12)
     abonos_map = {}
@@ -247,23 +236,18 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
     if start_date is None: 
         start_date = date.today()
     
-    # Procesar abonos extraordinarios (LÓGICA BLINDADA)
+    # --- Procesamiento de Abonos ---
     if not abonos_extra_df.empty:
         df_limpio = abonos_extra_df.copy()
-        
         for index, row in df_limpio.iterrows():
             try:
-                # 1. Validación de Fecha
                 raw_fecha = row.get("Fecha")
                 fecha_abono = None
                 
-                # Caso A: Objeto date/datetime
                 if isinstance(raw_fecha, (date, datetime)):
                     fecha_abono = raw_fecha if isinstance(raw_fecha, date) else raw_fecha.date()
-                # Caso B: Timestamp
                 elif isinstance(raw_fecha, pd.Timestamp):
                     fecha_abono = raw_fecha.date()
-                # Caso C: String (Intentar parsear formato día/mes/año común en CR)
                 elif isinstance(raw_fecha, str) and raw_fecha.strip():
                     try:
                         ts = pd.to_datetime(raw_fecha, dayfirst=True)
@@ -271,25 +255,20 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
                     except:
                          pass
                 
-                if not fecha_abono:
-                    continue # Fecha no válida, se salta
+                if not fecha_abono: continue
                 
-                # 2. Validación de Monto
                 monto_raw = row.get("Monto")
                 if isinstance(monto_raw, str):
                     monto_raw = monto_raw.replace(",", "").replace("₡", "").strip()
                 
                 monto_abono = pd.to_numeric(monto_raw, errors='coerce')
                 
-                if pd.isna(monto_abono) or monto_abono <= 0:
-                    continue # Monto inválido, se salta
+                if pd.isna(monto_abono) or monto_abono <= 0: continue
                 
                 monto_abono = float(monto_abono)
                 
-                # 3. Cálculo de mes relativo
                 diff_meses = (fecha_abono.year - start_date.year) * 12 + (fecha_abono.month - start_date.month)
                 
-                # Solo sumar si cae dentro del rango de proyección (0 a total meses)
                 if 0 <= diff_meses < meses:
                     abonos_map[diff_meses] = abonos_map.get(diff_meses, 0) + monto_abono
                 elif diff_meses < 0:
@@ -300,30 +279,93 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
             except Exception:
                 continue
 
-    # Cálculos de tasas
-    tasa_neta_nominal_anual = (tasa_bruta_pct / 100) * (1 - (comision_pct / 100))
-    tasa_mensual_efectiva = (1 + tasa_neta_nominal_anual)**(1/12) - 1
+    # --- Tasas Mensuales ---
+    # Tasa Bruta Mensual
+    tasa_anual_bruta = tasa_bruta_pct / 100
+    tasa_mensual_bruta = (1 + tasa_anual_bruta)**(1/12) - 1
+    
+    # Tasa Inflación Mensual
     inflacion_mensual = (1 + inflacion_pct/100)**(1/12) - 1
     
-    # Proyección
+    # Listas para Gráficos
     valores_nominales = [inicial]
     serie_aportes = [inicial] 
-    serie_real = [inicial]    
+    serie_real = [inicial]
+    
+    # Lista para Tabla Detallada
+    filas_detalle = []
+    
+    saldo_actual = inicial
     total_depositado = inicial
     
-    for i in range(meses):
-        interes = valores_nominales[-1] * tasa_mensual_efectiva
-        extra_este_mes = abonos_map.get(i, 0)
+    # Fila Inicial (Mes 0)
+    filas_detalle.append({
+        "Mes": 0,
+        "Fecha": start_date,
+        "Saldo Inicial": 0,
+        "Aporte Total": inicial,
+        "Rendimiento Bruto": 0,
+        "Comisión": 0,
+        "Rendimiento Neto": 0,
+        "Saldo Final": inicial
+    })
+    
+    for i in range(1, meses + 1):
+        # 1. Calcular Fecha del mes
+        fecha_mes = pd.Timestamp(start_date) + pd.DateOffset(months=i)
         
-        nuevo_saldo = valores_nominales[-1] + interes + aporte + extra_este_mes
-        nuevo_aporte_acumulado = total_depositado + aporte + extra_este_mes
-        factor_inflacion = (1 + inflacion_mensual)**(i+1)
+        # 2. Obtener Abonos Extra
+        extra_este_mes = abonos_map.get(i, 0) # Ajuste: i va de 1 a N, abonos_map usa índices relativos
+        # Nota: Si el abono es en mes 1, diff_meses=1.
         
+        # 3. Cálculo Financiero (Orden lógico: Saldo Ini -> Interés -> Comisión -> Aporte -> Saldo Fin)
+        saldo_inicial_mes = saldo_actual
+        
+        # Interés sobre el saldo que ya estaba
+        rendimiento_bruto = saldo_inicial_mes * tasa_mensual_bruta
+        
+        # Comisión sobre el rendimiento bruto
+        comision_monto = rendimiento_bruto * (comision_pct / 100)
+        
+        # Rendimiento Neto
+        rendimiento_neto = rendimiento_bruto - comision_monto
+        
+        # Aporte Total del mes (Ordinario + Extra)
+        aporte_total_mes = aporte + extra_este_mes
+        
+        # Saldo Final
+        nuevo_saldo = saldo_inicial_mes + rendimiento_neto + aporte_total_mes
+        
+        # Totales Acumulados
+        nuevo_aporte_acumulado = total_depositado + aporte_total_mes
+        
+        # Valor Real (Descontando inflación)
+        factor_inflacion = (1 + inflacion_mensual)**i
+        saldo_real = nuevo_saldo / factor_inflacion
+        
+        # Guardar datos
         valores_nominales.append(nuevo_saldo)
         serie_aportes.append(nuevo_aporte_acumulado)
-        serie_real.append(nuevo_saldo / factor_inflacion)
-        total_depositado += (aporte + extra_este_mes)
+        serie_real.append(saldo_real)
         
+        # Guardar Fila para Tabla
+        filas_detalle.append({
+            "Mes": i,
+            "Fecha": fecha_mes.date(),
+            "Saldo Inicial": saldo_inicial_mes,
+            "Aporte Total": aporte_total_mes,
+            "Rendimiento Bruto": rendimiento_bruto,
+            "Comisión": comision_monto,
+            "Rendimiento Neto": rendimiento_neto,
+            "Saldo Final": nuevo_saldo
+        })
+        
+        # Actualizar variables para siguiente ciclo
+        saldo_actual = nuevo_saldo
+        total_depositado = nuevo_aporte_acumulado
+        
+    df_detalle = pd.DataFrame(filas_detalle)
+    
     return {
         "serie_nominal": valores_nominales,
         "serie_aportes": serie_aportes,
@@ -331,7 +373,8 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
         "saldo_nominal": valores_nominales[-1],
         "saldo_real": serie_real[-1],
         "total_depositado": total_depositado,
-        "abonos_ignorados": abonos_ignorados
+        "abonos_ignorados": abonos_ignorados,
+        "df_detalle": df_detalle # Nuevo DataFrame Detallado
     }
 
 escenarios_data = {
@@ -363,7 +406,6 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
     resultados_completos[nombre] = res
     datos_grafico[nombre] = [res["serie_nominal"][i*12] for i in range(plazo_anos + 1)]
     
-    # Mostrar advertencias solo una vez
     if not advertencias_mostradas and res["abonos_ignorados"]:
         with st.container():
             st.warning(f"⚠️ **{len(res['abonos_ignorados'])} abonos no procesados (revisar fechas):**")
@@ -390,7 +432,6 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
         ganancia = res['saldo_nominal'] - res['total_depositado']
         roi = (ganancia / res['total_depositado']) * 100 if res['total_depositado'] > 0 else 0
 
-        # Tarjetas HTML
         card_html = textwrap.dedent(f"""
             <div style="background: {bg}; border: {border}; border-radius: 12px; padding: 20px; box-shadow: {shadow}; margin-bottom: 20px; opacity: {opacity}; backdrop-filter: blur(10px); transition: all 0.3s ease;">
                 <h3 style="margin: 0 0 15px 0; font-size: 1.3rem; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
@@ -425,10 +466,10 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
 
 st.markdown("---")
 
-# --- TABS CON EXPLICACIONES RECUPERADAS ---
+# --- TABS ---
 tab1, tab2, tab3, tab4 = st.tabs(["📈 Crecimiento", "🍰 Composición", "💸 Inflación", "📋 Tabla Detallada"])
 
-# Determinar escenario objetivo
+# Determinar escenario objetivo para detalles
 target_escenario = "Moderado" if escenario_view == "Todos" else escenario_view
 res_target = resultados_completos[target_escenario]
 
@@ -437,7 +478,6 @@ with tab1:
     if escenario_view == "Todos":
         st.subheader("📊 Evolución Comparativa")
         st.line_chart(datos_grafico, use_container_width=True, color=["#6366f1", "#fbbf24", "#10b981"])
-        # Leyenda explicativa recuperada
         st.markdown("""
         <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; padding: 12px; margin-top: 12px; text-align: center;">
             <span style="color: #6366f1; font-weight: 600;">━━</span> Conservador &nbsp;|&nbsp; 
@@ -460,9 +500,7 @@ with tab2:
         "✨ Intereses": [(res_target["serie_nominal"][i*12] - res_target["serie_aportes"][i*12]) for i in range(plazo_anos + 1)]
     })
     st.area_chart(datos_area, color=["#475569", "#fbbf24"], use_container_width=True)
-    
-    # Insight recuperado
-    st.info("💡 La zona **dorada** representa el dinero que trabaja para ti (Intereses). Con el tiempo, esta zona crece exponencialmente gracias al interés compuesto.")
+    st.info("💡 La zona **dorada** representa el dinero que trabaja para ti (Intereses).")
 
 # TAB 3: Inflación
 with tab3:
@@ -477,7 +515,6 @@ with tab3:
     perdida_inflacion = res_target["saldo_nominal"] - res_target["saldo_real"]
     porcentaje_perdida = (perdida_inflacion / res_target["saldo_nominal"]) * 100 if res_target["saldo_nominal"] > 0 else 0
     
-    # Alerta recuperada
     st.markdown(f"""
     <div style="background: linear-gradient(145deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05)); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 20px; margin-top: 16px;">
         <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
@@ -493,33 +530,49 @@ with tab3:
     </div>
     """, unsafe_allow_html=True)
 
-# TAB 4: Tabla
+# TAB 4: Tabla Detallada Mensual
 with tab4:
-    st.subheader("📊 Tabla de Datos")
+    st.subheader(f"📊 Desglose Mensual - Escenario {target_escenario}")
     
-    tabla_completa = pd.DataFrame({"Año": range(plazo_anos + 1)})
-    for nombre in escenarios_data.keys():
-        r = resultados_completos[nombre]
-        tabla_completa[f"{nombre} (Nominal)"] = [r["serie_nominal"][i*12] for i in range(plazo_anos + 1)]
-        tabla_completa[f"{nombre} (Real)"] = [r["serie_real"][i*12] for i in range(plazo_anos + 1)]
+    if escenario_view == "Todos":
+        st.info(f"ℹ️ Mostrando detalles del escenario **{target_escenario}**. Selecciona un escenario específico arriba para ver sus detalles.")
     
-    # Manejo de errores en renderizado de estilos
-    try:
-        st.dataframe(
-            tabla_completa.style.format({col: "₡ {:,.0f}" for col in tabla_completa.columns if col != "Año"}),
-            use_container_width=True,
-            height=400
-        )
-    except Exception:
-        # Fallback a tabla simple si falla el estilo
-        st.dataframe(tabla_completa, use_container_width=True, height=400)
+    # Obtener DataFrame detallado del escenario objetivo
+    df_mostrar = res_target["df_detalle"].copy()
     
-    # Texto de exportación recuperado
+    # Configuración de columnas para formato moneda
+    column_config = {
+        "Mes": st.column_config.NumberColumn("Mes", format="%d"),
+        "Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
+        "Saldo Inicial": st.column_config.NumberColumn("Saldo Inicial", format="₡%d"),
+        "Aporte Total": st.column_config.NumberColumn("Aporte Total", format="₡%d"),
+        "Rendimiento Bruto": st.column_config.NumberColumn("Rend. Bruto", format="₡%d"),
+        "Comisión": st.column_config.NumberColumn("Comisión", format="₡%d"),
+        "Rendimiento Neto": st.column_config.NumberColumn("Ganancia Neta", format="₡%d"),
+        "Saldo Final": st.column_config.NumberColumn("Saldo Final", format="₡%d")
+    }
+    
+    # Selección de columnas a mostrar
+    cols_to_show = ["Fecha", "Saldo Inicial", "Aporte Total", "Rendimiento Bruto", "Comisión", "Rendimiento Neto", "Saldo Final"]
+    
+    st.dataframe(
+        df_mostrar[cols_to_show],
+        column_config=column_config,
+        use_container_width=True,
+        height=500,
+        hide_index=True
+    )
+    
     st.markdown("""
     <div style="background: rgba(30, 41, 59, 0.6); border-radius: 8px; padding: 12px; margin-top: 10px; font-size: 0.9rem; color: #cbd5e1;">
-        📥 <strong>Exportación:</strong> Descarga estos datos para usarlos en tus asesorías o análisis personalizados.
+        📥 <strong>Exportación:</strong> Descarga el detalle mensual completo.
     </div>
     """, unsafe_allow_html=True)
     
-    csv = tabla_completa.to_csv(index=False).encode('utf-8')
-    st.download_button("⬇️ Descargar Excel (CSV)", data=csv, file_name=f"proyeccion_{date.today()}.csv", mime="text/csv")
+    csv = df_mostrar.to_csv(index=False).encode('utf-8')
+    st.download_button(
+        label=f"⬇️ Descargar Detalle {target_escenario} (CSV)", 
+        data=csv, 
+        file_name=f"detalle_mensual_{target_escenario}_{date.today()}.csv", 
+        mime="text/csv"
+    )
