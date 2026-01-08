@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from datetime import date, datetime, timedelta
 import textwrap
+import io # Necesario para manejar el archivo Excel en memoria
 
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
@@ -12,7 +13,6 @@ st.set_page_config(
 )
 
 # --- DATOS DE NEGOCIO: MATRIZ DE BONIFICACIÓN BN VITAL ---
-# Función que replica exactamente la tabla proporcionada.
 def obtener_tasa_bonificacion(meses_antiguedad, saldo_acumulado):
     # Definir índice de columna basado en Antigüedad (Meses)
     if meses_antiguedad < 24:
@@ -26,8 +26,7 @@ def obtener_tasa_bonificacion(meses_antiguedad, saldo_acumulado):
     else:
         col_idx = 4 # 96 meses o más
 
-    # Definir fila y porcentaje basado en Saldo (Colones o equivalente numérico)
-    # Estructura de la fila: [Col0, Col1, Col2, Col3, Col4]
+    # Definir fila y porcentaje basado en Saldo
     if saldo_acumulado < 1000000:
         porcentajes = [0.0, 1.00, 2.50, 4.50, 6.00]
     elif saldo_acumulado < 2000000:
@@ -200,7 +199,7 @@ st.markdown("""
 with st.sidebar:
     st.header("1. Tu Inversión")
 
-    # --- NUEVO: SELECTOR DE MONEDA ---
+    # --- SELECTOR DE MONEDA ---
     tipo_moneda = st.radio("Moneda", ["Colones (₡)", "Dólares ($)"], horizontal=True)
     simbolo = "₡" if "Colones" in tipo_moneda else "$"
     
@@ -585,7 +584,7 @@ with tab4:
     
     df_mostrar = res_target["df_detalle"].copy()
     
-    # Configuración de columnas para Labels y Types (Sin format visual aquí, usamos Styler)
+    # Configuración de columnas
     column_config = {
         "Mes": st.column_config.NumberColumn("Mes", format="%d"),
         "Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
@@ -601,8 +600,7 @@ with tab4:
         "Saldo Final": st.column_config.NumberColumn(f"Saldo Final ({simbolo})")
     }
     
-    # Formateo con Styler para comas y puntos (y símbolo dinámico)
-    # Usamos f-string con doble llave para escapar las llaves del format string interno
+    # Formateo con Styler
     format_str = f"{simbolo}{{:,.2f}}"
     format_dict = {
         "Saldo Inicial": format_str,
@@ -615,7 +613,6 @@ with tab4:
         "Saldo Final": format_str
     }
 
-    # Seleccionamos las columnas más relevantes para mostrar
     cols_to_show = [
         "Fecha", "Saldo Inicial", "Rendimiento Bruto", 
         "Comisión Bruta", "% Bonificación", "Monto Bonificación", 
@@ -636,10 +633,57 @@ with tab4:
     </div>
     """, unsafe_allow_html=True)
     
+    # --- BOTONES DE DESCARGA (CSV Y EXCEL) ---
+    col_d1, col_d2 = st.columns([1, 1])
+    
+    # 1. CSV
     csv = df_mostrar.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label=f"⬇️ Descargar Detalle Completo (CSV)", 
-        data=csv, 
-        file_name=f"detalle_bonificacion_{target_escenario}_{date.today()}.csv", 
-        mime="text/csv"
-    )
+    with col_d1:
+        st.download_button(
+            label=f"📄 Descargar CSV", 
+            data=csv, 
+            file_name=f"detalle_{target_escenario}_{date.today()}.csv", 
+            mime="text/csv"
+        )
+    
+    # 2. EXCEL (XLSX) con Formato de Tabla
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
+        df_mostrar.to_excel(writer, sheet_name='Proyeccion', index=False)
+        workbook = writer.book
+        worksheet = writer.sheets['Proyeccion']
+        
+        # Obtener dimensiones
+        (max_row, max_col) = df_mostrar.shape
+        
+        # Crear tabla de Excel con estilo
+        worksheet.add_table(0, 0, max_row, max_col - 1, {
+            'columns': [{'header': col} for col in df_mostrar.columns],
+            'style': 'TableStyleMedium9',
+            'name': 'ProyeccionFinanciera'
+        })
+        
+        # Formato de moneda para columnas numéricas
+        currency_fmt = workbook.add_format({'num_format': f'{simbolo}#,##0.00'})
+        pct_fmt = workbook.add_format({'num_format': '0.00%'})
+        
+        for i, col_name in enumerate(df_mostrar.columns):
+            if col_name == "% Bonificación":
+                worksheet.set_column(i, i, 12, pct_fmt)
+            elif col_name in ["Saldo Inicial", "Aporte Total", "Rendimiento Bruto", "Comisión Bruta", 
+                              "Monto Bonificación", "Comisión Real", "Rendimiento Neto", "Saldo Final"]:
+                worksheet.set_column(i, i, 18, currency_fmt)
+            elif col_name == "Fecha":
+                worksheet.set_column(i, i, 12)
+            else:
+                worksheet.set_column(i, i, 10)
+                
+    buffer.seek(0)
+    
+    with col_d2:
+        st.download_button(
+            label=f"📊 Descargar Excel (.xlsx)", 
+            data=buffer, 
+            file_name=f"proyeccion_excel_{target_escenario}_{date.today()}.xlsx", 
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
