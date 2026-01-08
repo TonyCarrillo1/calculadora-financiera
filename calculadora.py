@@ -12,9 +12,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# --- DATOS DE NEGOCIO: MATRIZ DE BONIFICACIÓN BN VITAL ---
-def obtener_tasa_bonificacion(meses_antiguedad, saldo_acumulado):
-    # Definir índice de columna basado en Antigüedad (Meses)
+# --- DATOS DE NEGOCIO: MATRIZ DE BONIFICACIÓN BN VITAL (BIMONETARIA) ---
+def obtener_tasa_bonificacion(meses_antiguedad, saldo_acumulado, es_dolares=False):
+    """
+    Calcula el % de bonificación basándose en la antigüedad y el saldo.
+    Soporta lógica diferenciada para Colones y Dólares.
+    """
+    # 1. Definir COLUMNA (Eje Tiempo - Igual para ambas monedas)
     if meses_antiguedad < 24:
         col_idx = 0 # 1 a < 24 meses
     elif meses_antiguedad < 48:
@@ -26,21 +30,42 @@ def obtener_tasa_bonificacion(meses_antiguedad, saldo_acumulado):
     else:
         col_idx = 4 # 96 meses o más
 
-    # Definir fila y porcentaje basado en Saldo
-    if saldo_acumulado < 1000000:
-        porcentajes = [0.0, 1.00, 2.50, 4.50, 6.00]
-    elif saldo_acumulado < 2000000:
-        porcentajes = [1.00, 2.50, 4.00, 6.00, 8.00]
-    elif saldo_acumulado < 5000000:
-        porcentajes = [2.00, 4.50, 6.00, 8.00, 12.00]
-    elif saldo_acumulado < 10000000:
-        porcentajes = [3.00, 6.50, 9.00, 12.00, 15.00]
-    elif saldo_acumulado < 50000000:
-        porcentajes = [5.50, 8.50, 12.00, 15.00, 18.00]
-    elif saldo_acumulado < 100000000:
-        porcentajes = [7.50, 10.50, 15.00, 18.00, 21.00]
-    else: # 100.000.000 en adelante
-        porcentajes = [9.50, 12.50, 18.00, 21.00, 25.00]
+    # 2. Definir FILA (Eje Saldo - Diferente según moneda)
+    porcentajes = [0.0] * 5 # Valor por defecto
+
+    if not es_dolares:
+        # --- TABLA COLONES (CRC) ---
+        if saldo_acumulado < 1000000:
+            porcentajes = [0.0, 1.00, 2.50, 4.50, 6.00]
+        elif saldo_acumulado < 2000000:
+            porcentajes = [1.00, 2.50, 4.00, 6.00, 8.00]
+        elif saldo_acumulado < 5000000:
+            porcentajes = [2.00, 4.50, 6.00, 8.00, 12.00]
+        elif saldo_acumulado < 10000000:
+            porcentajes = [3.00, 6.50, 9.00, 12.00, 15.00]
+        elif saldo_acumulado < 50000000:
+            porcentajes = [5.50, 8.50, 12.00, 15.00, 18.00]
+        elif saldo_acumulado < 100000000:
+            porcentajes = [7.50, 10.50, 15.00, 18.00, 21.00]
+        else: # > 100 Millones
+            porcentajes = [9.50, 12.50, 18.00, 21.00, 25.00]
+    else:
+        # --- TABLA DÓLARES (USD) ---
+        # Basado en la tabla Fondo Dólares B proporcionada
+        if saldo_acumulado < 2000:
+            porcentajes = [0.0, 1.00, 2.50, 4.50, 6.00]
+        elif saldo_acumulado < 4000:
+            porcentajes = [1.00, 2.50, 4.00, 6.00, 8.00]
+        elif saldo_acumulado < 10000:
+            porcentajes = [2.00, 4.50, 6.00, 8.00, 12.00]
+        elif saldo_acumulado < 20000:
+            porcentajes = [3.00, 6.50, 9.00, 12.00, 15.00]
+        elif saldo_acumulado < 100000:
+            porcentajes = [5.50, 8.50, 12.00, 15.00, 18.00]
+        elif saldo_acumulado < 200000:
+            porcentajes = [7.50, 10.50, 15.00, 18.00, 21.00]
+        else: # > 200,000 USD
+            porcentajes = [9.50, 12.50, 18.00, 21.00, 25.00]
     
     return porcentajes[col_idx]
 
@@ -202,6 +227,7 @@ with st.sidebar:
     # --- SELECTOR DE MONEDA ---
     tipo_moneda = st.radio("Moneda", ["Colones (₡)", "Dólares ($)"], horizontal=True)
     simbolo = "₡" if "Colones" in tipo_moneda else "$"
+    es_dolares = True if "$" in simbolo else False # Bandera lógica
     
     fecha_inicio = st.date_input("Fecha de Inicio", value=date.today())
     
@@ -265,9 +291,9 @@ with st.sidebar:
     st.header("5. Visualización")
     escenario_view = st.selectbox("Seleccionar Escenario", ["Todos", "Conservador", "Moderado", "Optimista"])
 
-# --- FUNCIÓN DE CÁLCULO (CON MATRIZ DE BONIFICACIÓN) ---
+# --- FUNCIÓN DE CÁLCULO (BIMONETARIA) ---
 @st.cache_data
-def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_pct, inflacion_pct, abonos_extra_df, start_date):
+def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_pct, inflacion_pct, abonos_extra_df, start_date, es_dolares):
     meses = int(anos * 12)
     abonos_map = {}
     abonos_ignorados = []
@@ -365,8 +391,9 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
         # 3. Comisión Bruta (Standard)
         comision_bruta = rendimiento_bruto * (comision_pct / 100)
         
-        # 4. Lógica de Bonificación BN Vital (Matriz Bidimensional)
-        pct_bonificacion = obtener_tasa_bonificacion(i, saldo_inicial_mes)
+        # 4. Lógica de Bonificación BN Vital (Matriz Bimonetaria)
+        # PASAMOS 'es_dolares' PARA ELEGIR LA TABLA CORRECTA
+        pct_bonificacion = obtener_tasa_bonificacion(i, saldo_inicial_mes, es_dolares)
         monto_bonificacion = comision_bruta * (pct_bonificacion / 100)
         
         # 5. Comisión Real a Descontar
@@ -446,7 +473,7 @@ resultados_completos = {}
 for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
     res = calcular_escenario_completo(
         tasa_input, plazo_anos, aporte_mensual, saldo_inicial, 
-        comision, inflacion, abonos_df, fecha_inicio
+        comision, inflacion, abonos_df, fecha_inicio, es_dolares
     )
     resultados_completos[nombre] = res
     datos_grafico[nombre] = [res["serie_nominal"][i*12] for i in range(plazo_anos + 1)]
