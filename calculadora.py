@@ -360,7 +360,6 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
         comision_bruta = rendimiento_bruto * (comision_pct / 100)
         
         # 4. Lógica de Bonificación BN Vital (Matriz Bidimensional)
-        # Usamos 'i' como meses de antigüedad y 'saldo_inicial_mes' como saldo acumulado
         pct_bonificacion = obtener_tasa_bonificacion(i, saldo_inicial_mes)
         monto_bonificacion = comision_bruta * (pct_bonificacion / 100)
         
@@ -394,7 +393,7 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
             "Aporte Total": aporte_total_mes,
             "Rendimiento Bruto": rendimiento_bruto,
             "Comisión Bruta": comision_bruta,
-            "% Bonificación": pct_bonificacion, # Nuevo para visibilidad
+            "% Bonificación": pct_bonificacion,
             "Monto Bonificación": monto_bonificacion,
             "Comisión Real": comision_real,
             "Rendimiento Neto": rendimiento_neto,
@@ -578,22 +577,34 @@ with tab4:
     
     df_mostrar = res_target["df_detalle"].copy()
     
-    # Configuración extendida con Bonificación y Comisión Real
+    # Configuración de columnas para Labels y Types (Sin format visual aquí, usamos Styler)
     column_config = {
         "Mes": st.column_config.NumberColumn("Mes", format="%d"),
         "Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
         "Antigüedad (Meses)": st.column_config.NumberColumn("Antigüedad", format="%d m"),
-        "Saldo Inicial": st.column_config.NumberColumn("Saldo Inicial", format="₡%d"),
-        "Aporte Total": st.column_config.NumberColumn("Aporte Total", format="₡%d"),
-        "Rendimiento Bruto": st.column_config.NumberColumn("Rend. Bruto", format="₡%d"),
-        "Comisión Bruta": st.column_config.NumberColumn("Com. Bruta", format="₡%d"),
+        "Saldo Inicial": st.column_config.NumberColumn("Saldo Inicial"),
+        "Aporte Total": st.column_config.NumberColumn("Aporte Total"),
+        "Rendimiento Bruto": st.column_config.NumberColumn("Rend. Bruto"),
+        "Comisión Bruta": st.column_config.NumberColumn("Com. Bruta"),
         "% Bonificación": st.column_config.NumberColumn("% Bonif.", format="%.2f%%"),
-        "Monto Bonificación": st.column_config.NumberColumn("Bonificación (+)", format="₡%d"),
-        "Comisión Real": st.column_config.NumberColumn("Com. Real (-)", format="₡%d"),
-        "Rendimiento Neto": st.column_config.NumberColumn("Ganancia Neta", format="₡%d"),
-        "Saldo Final": st.column_config.NumberColumn("Saldo Final", format="₡%d")
+        "Monto Bonificación": st.column_config.NumberColumn("Bonificación (+)"),
+        "Comisión Real": st.column_config.NumberColumn("Com. Real (-)"),
+        "Rendimiento Neto": st.column_config.NumberColumn("Ganancia Neta"),
+        "Saldo Final": st.column_config.NumberColumn("Saldo Final")
     }
     
+    # Formateo con Styler para comas y puntos (y símbolo de colones)
+    format_dict = {
+        "Saldo Inicial": "₡{:,.2f}",
+        "Aporte Total": "₡{:,.2f}",
+        "Rendimiento Bruto": "₡{:,.2f}",
+        "Comisión Bruta": "₡{:,.2f}",
+        "Monto Bonificación": "₡{:,.2f}",
+        "Comisión Real": "₡{:,.2f}",
+        "Rendimiento Neto": "₡{:,.2f}",
+        "Saldo Final": "₡{:,.2f}"
+    }
+
     # Seleccionamos las columnas más relevantes para mostrar
     cols_to_show = [
         "Fecha", "Saldo Inicial", "Rendimiento Bruto", 
@@ -602,7 +613,7 @@ with tab4:
     ]
     
     st.dataframe(
-        df_mostrar[cols_to_show],
+        df_mostrar[cols_to_show].style.format(format_dict),
         column_config=column_config,
         use_container_width=True,
         height=500,
