@@ -26,7 +26,7 @@ def obtener_tasa_bonificacion(meses_antiguedad, saldo_acumulado):
     else:
         col_idx = 4 # 96 meses o más
 
-    # Definir fila y porcentaje basado en Saldo (Colones)
+    # Definir fila y porcentaje basado en Saldo (Colones o equivalente numérico)
     # Estructura de la fila: [Col0, Col1, Col2, Col3, Col4]
     if saldo_acumulado < 1000000:
         porcentajes = [0.0, 1.00, 2.50, 4.50, 6.00]
@@ -199,18 +199,23 @@ st.markdown("""
 # --- BARRA LATERAL ---
 with st.sidebar:
     st.header("1. Tu Inversión")
+
+    # --- NUEVO: SELECTOR DE MONEDA ---
+    tipo_moneda = st.radio("Moneda", ["Colones (₡)", "Dólares ($)"], horizontal=True)
+    simbolo = "₡" if "Colones" in tipo_moneda else "$"
     
     fecha_inicio = st.date_input("Fecha de Inicio", value=date.today())
     
     if fecha_inicio < (date.today() - timedelta(days=365*5)):
         st.warning("⚠️ Fecha muy antigua. Se recomienda usar fechas recientes.")
     
-    saldo_inicial = st.number_input("Saldo Inicial (₡)", value=0, min_value=0, step=100000, format="%d")
-    aporte_mensual = st.number_input("Aporte Mensual (₡)", value=20000, min_value=0, step=5000, format="%d")
+    # Etiquetas dinámicas con el símbolo seleccionado
+    saldo_inicial = st.number_input(f"Saldo Inicial ({simbolo})", value=0, min_value=0, step=1000, format="%d")
+    aporte_mensual = st.number_input(f"Aporte Mensual ({simbolo})", value=200, min_value=0, step=10, format="%d")
     plazo_anos = st.number_input("Plazo (Años)", value=30, min_value=1, max_value=50, step=1)
     
     if saldo_inicial == 0 and aporte_mensual == 0:
-        st.error("⛔ Ingresa un **Saldo Inicial** o **Aporte Mensual** (o ambos)")
+        st.error(f"⛔ Ingresa un **Saldo Inicial** o **Aporte Mensual**")
         st.stop()
     
     st.markdown("---")
@@ -239,7 +244,8 @@ with st.sidebar:
             num_rows="dynamic",
             column_config={
                 "Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY", required=True),
-                "Monto": st.column_config.NumberColumn("Monto (₡)", format="%d", min_value=0, required=True)
+                # Columna Monto dinámica con el símbolo
+                "Monto": st.column_config.NumberColumn(f"Monto ({simbolo})", format=f"{simbolo}%d", min_value=0, required=True)
             },
             key="abonos_editor"
         )
@@ -252,7 +258,7 @@ with st.sidebar:
                     total_abonos = montos_numericos.sum()
                     if total_abonos > 0:
                         num_abonos = len(df_valido)
-                        st.success(f"✅ **{num_abonos} abono{'s' if num_abonos > 1 else ''}** por **₡{total_abonos:,.0f}**")
+                        st.success(f"✅ **{num_abonos} abono{'s' if num_abonos > 1 else ''}** por **{simbolo}{total_abonos:,.0f}**")
                 except Exception:
                     pass 
     
@@ -293,7 +299,8 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
                 
                 monto_raw = row.get("Monto")
                 if isinstance(monto_raw, str):
-                    monto_raw = monto_raw.replace(",", "").replace("₡", "").strip()
+                    # Limpiamos ambos símbolos para evitar errores si el usuario cambia de moneda con datos cargados
+                    monto_raw = monto_raw.replace(",", "").replace("₡", "").replace("$", "").strip()
                 
                 monto_abono = pd.to_numeric(monto_raw, errors='coerce')
                 
@@ -471,6 +478,7 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
         ganancia = res['saldo_nominal'] - res['total_depositado']
         roi = (ganancia / res['total_depositado']) * 100 if res['total_depositado'] > 0 else 0
 
+        # Tarjetas HTML con Símbolo Dinámico
         card_html = textwrap.dedent(f"""
             <div style="background: {bg}; border: {border}; border-radius: 12px; padding: 20px; box-shadow: {shadow}; margin-bottom: 20px; opacity: {opacity}; backdrop-filter: blur(10px); transition: all 0.3s ease;">
                 <h3 style="margin: 0 0 15px 0; font-size: 1.3rem; color: #fff; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
@@ -478,20 +486,20 @@ for (nombre, tasa_input), col in zip(escenarios_data.items(), cols):
                 </h3>
                 <div style="margin-bottom: 15px;">
                     <div style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px;">💰 Saldo Futuro</div>
-                    <div style="font-size: 2rem; font-weight: 700; color: #fff;">₡{res['saldo_nominal']:,.0f}</div>
+                    <div style="font-size: 2rem; font-weight: 700; color: #fff;">{simbolo}{res['saldo_nominal']:,.0f}</div>
                 </div>
                 <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
                     <div style="font-size: 0.8rem; color: #86efac; text-transform: uppercase; letter-spacing: 1px;">🎯 Poder de Compra Hoy</div>
-                    <div style="font-size: 1.4rem; font-weight: 700; color: #10b981;">₡{res['saldo_real']:,.0f}</div>
+                    <div style="font-size: 1.4rem; font-weight: 700; color: #10b981;">{simbolo}{res['saldo_real']:,.0f}</div>
                 </div>
                 <div style="background: rgba(0,0,0,0.3); border-radius: 8px; padding: 12px; font-size: 0.9rem;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
                         <span style="color: #cbd5e1;">💵 Inversión:</span>
-                        <span style="color: #fff; font-weight: 600;">₡{res['total_depositado']:,.0f}</span>
+                        <span style="color: #fff; font-weight: 600;">{simbolo}{res['total_depositado']:,.0f}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
                         <span style="color: #cbd5e1;">📈 Ganancia:</span>
-                        <span style="color: #60a5fa; font-weight: 600;">₡{ganancia:,.0f}</span>
+                        <span style="color: #60a5fa; font-weight: 600;">{simbolo}{ganancia:,.0f}</span>
                     </div>
                     <div style="height: 1px; background: rgba(255,255,255,0.1); margin: 10px 0;"></div>
                     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -562,7 +570,7 @@ with tab3:
             </div>
         </div>
         <div style="color: #cbd5e1; font-size: 0.95rem;">
-            Pérdida estimada de poder adquisitivo: <strong style="color: #f87171;">₡{perdida_inflacion:,.0f}</strong> ({porcentaje_perdida:.1f}%)
+            Pérdida estimada de poder adquisitivo: <strong style="color: #f87171;">{simbolo}{perdida_inflacion:,.0f}</strong> ({porcentaje_perdida:.1f}%)
             <br><em style="font-size: 0.85rem; opacity: 0.8;">La brecha entre ambas líneas es el "costo invisible" de la inflación.</em>
         </div>
     </div>
@@ -582,27 +590,29 @@ with tab4:
         "Mes": st.column_config.NumberColumn("Mes", format="%d"),
         "Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
         "Antigüedad (Meses)": st.column_config.NumberColumn("Antigüedad", format="%d m"),
-        "Saldo Inicial": st.column_config.NumberColumn("Saldo Inicial"),
-        "Aporte Total": st.column_config.NumberColumn("Aporte Total"),
-        "Rendimiento Bruto": st.column_config.NumberColumn("Rend. Bruto"),
-        "Comisión Bruta": st.column_config.NumberColumn("Com. Bruta"),
+        "Saldo Inicial": st.column_config.NumberColumn(f"Saldo Inicial ({simbolo})"),
+        "Aporte Total": st.column_config.NumberColumn(f"Aporte Total ({simbolo})"),
+        "Rendimiento Bruto": st.column_config.NumberColumn(f"Rend. Bruto ({simbolo})"),
+        "Comisión Bruta": st.column_config.NumberColumn(f"Com. Bruta ({simbolo})"),
         "% Bonificación": st.column_config.NumberColumn("% Bonif.", format="%.2f%%"),
-        "Monto Bonificación": st.column_config.NumberColumn("Bonificación (+)"),
-        "Comisión Real": st.column_config.NumberColumn("Com. Real (-)"),
-        "Rendimiento Neto": st.column_config.NumberColumn("Ganancia Neta"),
-        "Saldo Final": st.column_config.NumberColumn("Saldo Final")
+        "Monto Bonificación": st.column_config.NumberColumn(f"Bonificación (+) ({simbolo})"),
+        "Comisión Real": st.column_config.NumberColumn(f"Com. Real (-) ({simbolo})"),
+        "Rendimiento Neto": st.column_config.NumberColumn(f"Ganancia Neta ({simbolo})"),
+        "Saldo Final": st.column_config.NumberColumn(f"Saldo Final ({simbolo})")
     }
     
-    # Formateo con Styler para comas y puntos (y símbolo de colones)
+    # Formateo con Styler para comas y puntos (y símbolo dinámico)
+    # Usamos f-string con doble llave para escapar las llaves del format string interno
+    format_str = f"{simbolo}{{:,.2f}}"
     format_dict = {
-        "Saldo Inicial": "₡{:,.2f}",
-        "Aporte Total": "₡{:,.2f}",
-        "Rendimiento Bruto": "₡{:,.2f}",
-        "Comisión Bruta": "₡{:,.2f}",
-        "Monto Bonificación": "₡{:,.2f}",
-        "Comisión Real": "₡{:,.2f}",
-        "Rendimiento Neto": "₡{:,.2f}",
-        "Saldo Final": "₡{:,.2f}"
+        "Saldo Inicial": format_str,
+        "Aporte Total": format_str,
+        "Rendimiento Bruto": format_str,
+        "Comisión Bruta": format_str,
+        "Monto Bonificación": format_str,
+        "Comisión Real": format_str,
+        "Rendimiento Neto": format_str,
+        "Saldo Final": format_str
     }
 
     # Seleccionamos las columnas más relevantes para mostrar
