@@ -11,6 +11,40 @@ st.set_page_config(
     layout="wide"
 )
 
+# --- DATOS DE NEGOCIO: MATRIZ DE BONIFICACIÓN BN VITAL ---
+# Función que replica exactamente la tabla proporcionada.
+def obtener_tasa_bonificacion(meses_antiguedad, saldo_acumulado):
+    # Definir índice de columna basado en Antigüedad (Meses)
+    if meses_antiguedad < 24:
+        col_idx = 0 # 1 a < 24 meses
+    elif meses_antiguedad < 48:
+        col_idx = 1 # 24 a < 48 meses
+    elif meses_antiguedad < 72:
+        col_idx = 2 # 48 a < 72 meses
+    elif meses_antiguedad < 96:
+        col_idx = 3 # 72 a < 96 meses
+    else:
+        col_idx = 4 # 96 meses o más
+
+    # Definir fila y porcentaje basado en Saldo (Colones)
+    # Estructura de la fila: [Col0, Col1, Col2, Col3, Col4]
+    if saldo_acumulado < 1000000:
+        porcentajes = [0.0, 1.00, 2.50, 4.50, 6.00]
+    elif saldo_acumulado < 2000000:
+        porcentajes = [1.00, 2.50, 4.00, 6.00, 8.00]
+    elif saldo_acumulado < 5000000:
+        porcentajes = [2.00, 4.50, 6.00, 8.00, 12.00]
+    elif saldo_acumulado < 10000000:
+        porcentajes = [3.00, 6.50, 9.00, 12.00, 15.00]
+    elif saldo_acumulado < 50000000:
+        porcentajes = [5.50, 8.50, 12.00, 15.00, 18.00]
+    elif saldo_acumulado < 100000000:
+        porcentajes = [7.50, 10.50, 15.00, 18.00, 21.00]
+    else: # 100.000.000 en adelante
+        porcentajes = [9.50, 12.50, 18.00, 21.00, 25.00]
+    
+    return porcentajes[col_idx]
+
 # --- ESTILOS CSS PROFESIONALES (THEME PREMIUM) ---
 st.markdown("""
 <style>
@@ -226,7 +260,7 @@ with st.sidebar:
     st.header("5. Visualización")
     escenario_view = st.selectbox("Seleccionar Escenario", ["Todos", "Conservador", "Moderado", "Optimista"])
 
-# --- FUNCIÓN DE CÁLCULO ---
+# --- FUNCIÓN DE CÁLCULO (CON MATRIZ DE BONIFICACIÓN) ---
 @st.cache_data
 def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_pct, inflacion_pct, abonos_extra_df, start_date):
     meses = int(anos * 12)
@@ -280,87 +314,93 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
                 continue
 
     # --- Tasas Mensuales ---
-    # Tasa Bruta Mensual
     tasa_anual_bruta = tasa_bruta_pct / 100
     tasa_mensual_bruta = (1 + tasa_anual_bruta)**(1/12) - 1
-    
-    # Tasa Inflación Mensual
     inflacion_mensual = (1 + inflacion_pct/100)**(1/12) - 1
     
-    # Listas para Gráficos
+    # Listas
     valores_nominales = [inicial]
     serie_aportes = [inicial] 
     serie_real = [inicial]
-    
-    # Lista para Tabla Detallada
     filas_detalle = []
     
     saldo_actual = inicial
     total_depositado = inicial
     
-    # Fila Inicial (Mes 0)
+    # Fila Inicial
     filas_detalle.append({
         "Mes": 0,
         "Fecha": start_date,
+        "Antigüedad (Meses)": 0,
         "Saldo Inicial": 0,
         "Aporte Total": inicial,
         "Rendimiento Bruto": 0,
-        "Comisión": 0,
+        "Comisión Bruta": 0,
+        "% Bonificación": 0,
+        "Monto Bonificación": 0,
+        "Comisión Real": 0,
         "Rendimiento Neto": 0,
         "Saldo Final": inicial
     })
     
     for i in range(1, meses + 1):
-        # 1. Calcular Fecha del mes
+        # Fecha
         fecha_mes = pd.Timestamp(start_date) + pd.DateOffset(months=i)
         
-        # 2. Obtener Abonos Extra
-        extra_este_mes = abonos_map.get(i, 0) # Ajuste: i va de 1 a N, abonos_map usa índices relativos
-        # Nota: Si el abono es en mes 1, diff_meses=1.
+        # Abonos
+        extra_este_mes = abonos_map.get(i, 0)
         
-        # 3. Cálculo Financiero (Orden lógico: Saldo Ini -> Interés -> Comisión -> Aporte -> Saldo Fin)
+        # 1. Saldo Base
         saldo_inicial_mes = saldo_actual
         
-        # Interés sobre el saldo que ya estaba
+        # 2. Rendimiento Bruto (sobre saldo inicial)
         rendimiento_bruto = saldo_inicial_mes * tasa_mensual_bruta
         
-        # Comisión sobre el rendimiento bruto
-        comision_monto = rendimiento_bruto * (comision_pct / 100)
+        # 3. Comisión Bruta (Standard)
+        comision_bruta = rendimiento_bruto * (comision_pct / 100)
         
-        # Rendimiento Neto
-        rendimiento_neto = rendimiento_bruto - comision_monto
+        # 4. Lógica de Bonificación BN Vital (Matriz Bidimensional)
+        # Usamos 'i' como meses de antigüedad y 'saldo_inicial_mes' como saldo acumulado
+        pct_bonificacion = obtener_tasa_bonificacion(i, saldo_inicial_mes)
+        monto_bonificacion = comision_bruta * (pct_bonificacion / 100)
         
-        # Aporte Total del mes (Ordinario + Extra)
+        # 5. Comisión Real a Descontar
+        comision_real = comision_bruta - monto_bonificacion
+        
+        # 6. Rendimiento Neto
+        rendimiento_neto = rendimiento_bruto - comision_real
+        
+        # 7. Aporte Total
         aporte_total_mes = aporte + extra_este_mes
         
-        # Saldo Final
+        # 8. Saldo Final
         nuevo_saldo = saldo_inicial_mes + rendimiento_neto + aporte_total_mes
         
-        # Totales Acumulados
+        # Acumulados
         nuevo_aporte_acumulado = total_depositado + aporte_total_mes
-        
-        # Valor Real (Descontando inflación)
         factor_inflacion = (1 + inflacion_mensual)**i
         saldo_real = nuevo_saldo / factor_inflacion
         
-        # Guardar datos
+        # Guardar
         valores_nominales.append(nuevo_saldo)
         serie_aportes.append(nuevo_aporte_acumulado)
         serie_real.append(saldo_real)
         
-        # Guardar Fila para Tabla
         filas_detalle.append({
             "Mes": i,
             "Fecha": fecha_mes.date(),
+            "Antigüedad (Meses)": i,
             "Saldo Inicial": saldo_inicial_mes,
             "Aporte Total": aporte_total_mes,
             "Rendimiento Bruto": rendimiento_bruto,
-            "Comisión": comision_monto,
+            "Comisión Bruta": comision_bruta,
+            "% Bonificación": pct_bonificacion, # Nuevo para visibilidad
+            "Monto Bonificación": monto_bonificacion,
+            "Comisión Real": comision_real,
             "Rendimiento Neto": rendimiento_neto,
             "Saldo Final": nuevo_saldo
         })
         
-        # Actualizar variables para siguiente ciclo
         saldo_actual = nuevo_saldo
         total_depositado = nuevo_aporte_acumulado
         
@@ -374,7 +414,7 @@ def calcular_escenario_completo(tasa_bruta_pct, anos, aporte, inicial, comision_
         "saldo_real": serie_real[-1],
         "total_depositado": total_depositado,
         "abonos_ignorados": abonos_ignorados,
-        "df_detalle": df_detalle # Nuevo DataFrame Detallado
+        "df_detalle": df_detalle
     }
 
 escenarios_data = {
@@ -469,7 +509,6 @@ st.markdown("---")
 # --- TABS ---
 tab1, tab2, tab3, tab4 = st.tabs(["📈 Crecimiento", "🍰 Composición", "💸 Inflación", "📋 Tabla Detallada"])
 
-# Determinar escenario objetivo para detalles
 target_escenario = "Moderado" if escenario_view == "Todos" else escenario_view
 res_target = resultados_completos[target_escenario]
 
@@ -532,28 +571,35 @@ with tab3:
 
 # TAB 4: Tabla Detallada Mensual
 with tab4:
-    st.subheader(f"📊 Desglose Mensual - Escenario {target_escenario}")
+    st.subheader(f"📊 Desglose Mensual Detallado - {target_escenario}")
     
     if escenario_view == "Todos":
         st.info(f"ℹ️ Mostrando detalles del escenario **{target_escenario}**. Selecciona un escenario específico arriba para ver sus detalles.")
     
-    # Obtener DataFrame detallado del escenario objetivo
     df_mostrar = res_target["df_detalle"].copy()
     
-    # Configuración de columnas para formato moneda
+    # Configuración extendida con Bonificación y Comisión Real
     column_config = {
         "Mes": st.column_config.NumberColumn("Mes", format="%d"),
         "Fecha": st.column_config.DateColumn("Fecha", format="DD/MM/YYYY"),
+        "Antigüedad (Meses)": st.column_config.NumberColumn("Antigüedad", format="%d m"),
         "Saldo Inicial": st.column_config.NumberColumn("Saldo Inicial", format="₡%d"),
         "Aporte Total": st.column_config.NumberColumn("Aporte Total", format="₡%d"),
         "Rendimiento Bruto": st.column_config.NumberColumn("Rend. Bruto", format="₡%d"),
-        "Comisión": st.column_config.NumberColumn("Comisión", format="₡%d"),
+        "Comisión Bruta": st.column_config.NumberColumn("Com. Bruta", format="₡%d"),
+        "% Bonificación": st.column_config.NumberColumn("% Bonif.", format="%.2f%%"),
+        "Monto Bonificación": st.column_config.NumberColumn("Bonificación (+)", format="₡%d"),
+        "Comisión Real": st.column_config.NumberColumn("Com. Real (-)", format="₡%d"),
         "Rendimiento Neto": st.column_config.NumberColumn("Ganancia Neta", format="₡%d"),
         "Saldo Final": st.column_config.NumberColumn("Saldo Final", format="₡%d")
     }
     
-    # Selección de columnas a mostrar
-    cols_to_show = ["Fecha", "Saldo Inicial", "Aporte Total", "Rendimiento Bruto", "Comisión", "Rendimiento Neto", "Saldo Final"]
+    # Seleccionamos las columnas más relevantes para mostrar
+    cols_to_show = [
+        "Fecha", "Saldo Inicial", "Rendimiento Bruto", 
+        "Comisión Bruta", "% Bonificación", "Monto Bonificación", 
+        "Rendimiento Neto", "Saldo Final"
+    ]
     
     st.dataframe(
         df_mostrar[cols_to_show],
@@ -565,14 +611,14 @@ with tab4:
     
     st.markdown("""
     <div style="background: rgba(30, 41, 59, 0.6); border-radius: 8px; padding: 12px; margin-top: 10px; font-size: 0.9rem; color: #cbd5e1;">
-        📥 <strong>Exportación:</strong> Descarga el detalle mensual completo.
+        📥 <strong>Exportación:</strong> El archivo descargable incluye TODAS las columnas, incluyendo el desglose de la bonificación.
     </div>
     """, unsafe_allow_html=True)
     
     csv = df_mostrar.to_csv(index=False).encode('utf-8')
     st.download_button(
-        label=f"⬇️ Descargar Detalle {target_escenario} (CSV)", 
+        label=f"⬇️ Descargar Detalle Completo (CSV)", 
         data=csv, 
-        file_name=f"detalle_mensual_{target_escenario}_{date.today()}.csv", 
+        file_name=f"detalle_bonificacion_{target_escenario}_{date.today()}.csv", 
         mime="text/csv"
     )
